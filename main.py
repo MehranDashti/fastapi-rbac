@@ -1,27 +1,42 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
+from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import logger
 from app.core.middleware import RequestLoggingMiddleware
-# from app.api.v1.routers import user_router  # uncomment when ready
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── Startup ───────────────────────────────────────────────────────────────
+    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"PRODUCTION={settings.PRODUCTION}  WORKERS={settings.SERVER_WORKERS}")
+
+    # Import models so Alembic / Base.metadata knows about them
+    import app.models.user 
+
+    yield
+
+    # ── Shutdown ──────────────────────────────────────────────────────────────
+    logger.info(f"{settings.APP_NAME} shutting down")
+
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
         debug=settings.DEBUG,
-        # Hide docs in production
+        lifespan=lifespan,
         docs_url=None if settings.PRODUCTION else "/docs",
         redoc_url=None if settings.PRODUCTION else "/redoc",
         openapi_url=None if settings.PRODUCTION else "/openapi.json",
     )
 
-    # --- Middleware (order matters: first added = outermost) ---
-
-    # CORS
+    # ── Middleware (outermost first) ───────────────────────────────────────────
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
@@ -29,31 +44,18 @@ def create_app() -> FastAPI:
         allow_methods=settings.CORS_ALLOW_METHODS,
         allow_headers=settings.CORS_ALLOW_HEADERS,
     )
-
-    # GZip compression for responses > 1KB
     app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-    # Request logging (innermost so it wraps the actual handler)
     app.add_middleware(RequestLoggingMiddleware)
 
-    # --- Routers ---
-    # app.include_router(user_router.router, prefix="/api/v1")
+    # ── Routers ───────────────────────────────────────────────────────────────
+    app.include_router(api_router)
 
-    # --- Lifecycle events ---
-    @app.on_event("startup")
-    async def startup():
-        logger.info(f"{settings.APP_NAME} v{settings.APP_VERSION} started")
-        logger.info(f"PRODUCTION={settings.PRODUCTION}, WORKERS={settings.SERVER_WORKERS}")
-
-    @app.on_event("shutdown")
-    async def shutdown():
-        logger.info(f"{settings.APP_NAME} shutting down")
-
-    # --- Health check ---
-    @app.get("/health", tags=["system"])
+    # ── System routes ─────────────────────────────────────────────────────────
+    @app.get("/health", tags=["System"])
     async def health():
         return {"status": "ok", "version": settings.APP_VERSION}
 
     return app
+
 
 app = create_app()

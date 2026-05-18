@@ -1,7 +1,14 @@
 fastapi
 uvicorn[standard]
 pydantic-settings
+pydantic[email]
 python-dotenv
 sqlalchemy
 alembic
-psycopg2-binary
+aiomysql          # ← MySQL async driver
+aiosqlite         # ← keep for tests only
+python-jose[cryptography]
+passlib[bcrypt]
+httpx
+pytest
+pytest-asyncio

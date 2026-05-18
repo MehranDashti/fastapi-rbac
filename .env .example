@@ -10,8 +10,14 @@ SERVER_WORKERS=1
 CORS_ORIGINS=["http://localhost:3000","https://yourdomain.com"]
 CORS_ALLOW_CREDENTIALS=true
 
-DATABASE_URL=postgresql://user:pass@localhost:5432/mydb
+DATABASE_URL=mysql+aiomysql://user:password@localhost:3306/mydb
 
 LOG_LEVEL=INFO
 SYSLOG_HOST=localhost
 SYSLOG_PORT=514
+ 
+SECRET_KEY=your-super-secret-key-change-in-production-min-32-chars
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+ALGORITHM=HS256
+ 

@@ -223,3 +223,8 @@ $RECYCLE.BIN/
 .scheduler/
 config.cfg
 *.gql
+
+directory_structure.py
+tree_output.txt
+
+.env

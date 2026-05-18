@@ -1,16 +1,19 @@
 import uvicorn
 from dotenv import load_dotenv
-import os
+
+load_dotenv()
+
+from app.core.config import settings 
 
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
-        host=os.getenv("SERVER_LISTEN_IP", "0.0.0.0"),
-        port=int(os.getenv("SERVER_LISTEN_PORT", "8000")),
-        log_level="info",
+        host=settings.SERVER_LISTEN_IP,
+        port=settings.SERVER_LISTEN_PORT,
+        log_level=settings.LOG_LEVEL.lower(),
         proxy_headers=True,
         forwarded_allow_ips="*",
-        reload=os.getenv("PRODUCTION", "false").lower() != "true",
+        reload=not settings.PRODUCTION,
         loop="asyncio",
-        workers=int(os.getenv("SERVER_WORKERS", "1")),
+        workers=settings.SERVER_WORKERS,
     )

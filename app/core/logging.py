@@ -1,14 +1,20 @@
 import logging
 import logging.handlers
 import sys
+
 from app.core.config import settings
+
 
 def setup_logging() -> logging.Logger:
     logger = logging.getLogger("app")
     logger.setLevel(getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 
+    # Avoid adding duplicate handlers on reload
+    if logger.handlers:
+        return logger
+
     formatter = logging.Formatter(
-        fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S",
     )
 
@@ -17,7 +23,7 @@ def setup_logging() -> logging.Logger:
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # Syslog handler
+    # Syslog handler (UDP — non-blocking, won't crash if syslog unavailable)
     try:
         syslog_handler = logging.handlers.SysLogHandler(
             address=(settings.SYSLOG_HOST, settings.SYSLOG_PORT)
@@ -28,5 +34,6 @@ def setup_logging() -> logging.Logger:
         logger.warning(f"Syslog handler could not be initialized: {e}")
 
     return logger
+
 
 logger = setup_logging()
