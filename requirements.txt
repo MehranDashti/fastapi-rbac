@@ -6,11 +6,6 @@ python-dotenv
 croniter
 sqlalchemy
 alembic
-aiomysql          # ← MySQL async driver
-aiosqlite         # ← keep for tests only
+aiomysql
 python-jose[cryptography]
-passlib[bcrypt]
-httpx
-pytest
-pytest-asyncio
-faker
+bcrypt
