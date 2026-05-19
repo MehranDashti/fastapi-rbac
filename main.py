@@ -9,10 +9,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exception_handler import (
+    app_error_handler,
     http_exception_handler,
     unhandled_exception_handler,
     validation_exception_handler,
 )
+from app.core.exceptions import AppError
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
 from app.core.response import ok
@@ -45,6 +47,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(RequestLoggingMiddleware)
 
+    app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)

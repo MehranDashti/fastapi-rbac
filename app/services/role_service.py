@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
-from fastapi import HTTPException, status
-
+from app.core.exceptions import ConflictError, NotFoundError
 from app.models.role import Role
 from app.repositories.permission_repository import PermissionRepository
 from app.repositories.role_repository import RoleRepository
@@ -20,19 +19,13 @@ class RoleService(BaseService[Role]):
     async def get_by_id_with_permissions(self, role_id: int) -> Role:
         role = await self.repo.get_with_permissions(role_id)
         if not role:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Role with id {role_id} not found.",
-            )
+            raise NotFoundError(f"Role with id {role_id} not found.")
         return role
 
     async def get_by_name(self, name: str, guard_name: str = "api") -> Role:
         role = await self.repo.get_by_name(name, guard_name)
         if not role:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Role '{name}' not found.",
-            )
+            raise NotFoundError(f"Role '{name}' not found.")
         return role
 
     async def get_paginated(
@@ -51,10 +44,7 @@ class RoleService(BaseService[Role]):
         guard_name: str = "api",
     ) -> Role:
         if await self.repo.exists(name, guard_name):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Role '{name}' already exists for guard '{guard_name}'.",
-            )
+            raise ConflictError(f"Role '{name}' already exists for guard '{guard_name}'.")
         role = Role(
             name=name,
             display_name=display_name,
@@ -71,14 +61,10 @@ class RoleService(BaseService[Role]):
         role = await self.get_by_id_with_permissions(role_id)
         permission = await self.permission_repo.get_by_id(permission_id)
         if not permission:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Permission with id {permission_id} not found.",
-            )
+            raise NotFoundError(f"Permission with id {permission_id} not found.")
         if permission in role.permissions:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Permission '{permission.name}' is already assigned to role '{role.name}'.",
+            raise ConflictError(
+                f"Permission '{permission.name}' is already assigned to role '{role.name}'."
             )
         await self.repo.assign_permission(role, permission)
         return role
@@ -87,14 +73,10 @@ class RoleService(BaseService[Role]):
         role = await self.get_by_id_with_permissions(role_id)
         permission = await self.permission_repo.get_by_id(permission_id)
         if not permission:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Permission with id {permission_id} not found.",
-            )
+            raise NotFoundError(f"Permission with id {permission_id} not found.")
         if permission not in role.permissions:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Permission '{permission.name}' is not assigned to role '{role.name}'.",
+            raise ConflictError(
+                f"Permission '{permission.name}' is not assigned to role '{role.name}'."
             )
         await self.repo.revoke_permission(role, permission)
         return role

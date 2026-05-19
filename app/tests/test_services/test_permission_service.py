@@ -1,7 +1,7 @@
 import pytest
-from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError, NotFoundError
 from app.repositories.permission_repository import PermissionRepository
 from app.services.permission_service import PermissionService
 from app.tests.conftest import make_permission
@@ -21,9 +21,8 @@ async def test_create_success(db_session: AsyncSession):
 async def test_create_duplicate(db_session: AsyncSession):
     service = make_service(db_session)
     await service.create(name="posts.read", display_name="Read Posts")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ConflictError):
         await service.create(name="posts.read", display_name="Read Posts Again")
-    assert exc.value.status_code == 409
 
 
 async def test_update_success(db_session: AsyncSession):
@@ -35,9 +34,8 @@ async def test_update_success(db_session: AsyncSession):
 
 async def test_update_not_found(db_session: AsyncSession):
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(NotFoundError):
         await service.update(9999, display_name="X")
-    assert exc.value.status_code == 404
 
 
 async def test_delete_success(db_session: AsyncSession):
@@ -49,9 +47,8 @@ async def test_delete_success(db_session: AsyncSession):
 
 async def test_delete_not_found(db_session: AsyncSession):
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(NotFoundError):
         await service.delete(9999)
-    assert exc.value.status_code == 404
 
 
 async def test_get_all_by_guard(db_session: AsyncSession):
@@ -73,6 +70,5 @@ async def test_get_by_name_success(db_session: AsyncSession):
 
 async def test_get_by_name_not_found(db_session: AsyncSession):
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(NotFoundError):
         await service.get_by_name("ghost.read")
-    assert exc.value.status_code == 404

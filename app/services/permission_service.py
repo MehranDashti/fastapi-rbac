@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
-from fastapi import HTTPException, status
-
+from app.core.exceptions import ConflictError, NotFoundError
 from app.models.permission import Permission
 from app.repositories.permission_repository import PermissionRepository
 from app.services.base import BaseService
@@ -30,10 +29,7 @@ class PermissionService(BaseService[Permission]):
     async def get_by_name(self, name: str, guard_name: str = "api") -> Permission:
         permission = await self.repo.get_by_name(name, guard_name)
         if not permission:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Permission '{name}' not found.",
-            )
+            raise NotFoundError(f"Permission '{name}' not found.")
         return permission
 
     async def create(
@@ -43,9 +39,8 @@ class PermissionService(BaseService[Permission]):
         guard_name: str = "api",
     ) -> Permission:
         if await self.repo.exists(name, guard_name):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Permission '{name}' already exists for guard '{guard_name}'.",
+            raise ConflictError(
+                f"Permission '{name}' already exists for guard '{guard_name}'."
             )
         permission = Permission(
             name=name,

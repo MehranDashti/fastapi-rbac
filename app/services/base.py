@@ -1,7 +1,6 @@
 from typing import Generic, TypeVar
 
-from fastapi import HTTPException, status
-
+from app.core.exceptions import NotFoundError
 from app.db.session import Base
 from app.repositories.base import BaseRepository
 
@@ -19,10 +18,7 @@ class BaseService(Generic[T]):
     async def get_by_id(self, entity_id: int) -> T:
         entity = await self.repo.get_by_id(entity_id)
         if not entity:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"{self._entity_name} with id {entity_id} not found.",
-            )
+            raise NotFoundError(f"{self._entity_name} with id {entity_id} not found.")
         return entity
 
     async def get_all(self) -> list[T]:

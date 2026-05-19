@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.dependencies import get_current_user, get_user_service
+from app.core.permissions import get_all_permissions
 from app.core.response import created, no_content, ok
 from app.core.security import create_access_token, create_refresh_token, decode_token
 from app.models.user import User
@@ -97,7 +98,7 @@ async def get_profile(
 ):
     return ok(UserDetailResponse.from_user(
         current_user,
-        service.get_all_permissions(current_user),
+        get_all_permissions(current_user),
     ))
 
 
@@ -112,4 +113,4 @@ async def update_profile(
         full_name=body.full_name,
         password=body.password,
     )
-    return ok(UserDetailResponse.from_user(user, service.get_all_permissions(user)))
+    return ok(UserDetailResponse.from_user(user, get_all_permissions(user)))

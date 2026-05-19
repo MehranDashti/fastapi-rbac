@@ -3,6 +3,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
+from app.core.exceptions import (
+    AppError,
+    AuthenticationError,
+    ConflictError,
+    InactiveAccountError,
+    NotFoundError,
+)
+
 _ERROR_MESSAGES: dict[int, str] = {
     400: "Bad Request",
     401: "Unauthenticated",
@@ -13,6 +21,28 @@ _ERROR_MESSAGES: dict[int, str] = {
     422: "Validation Exception",
     500: "Unexpected Exception",
 }
+
+
+_DOMAIN_STATUS_MAP: dict[type, int] = {
+    NotFoundError: 404,
+    ConflictError: 409,
+    AuthenticationError: 401,
+    InactiveAccountError: 403,
+}
+
+
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    status_code = _DOMAIN_STATUS_MAP.get(type(exc), 400)
+    message = _ERROR_MESSAGES.get(status_code, "Something went wrong")
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": False,
+            "code": status_code,
+            "message": message,
+            "error": {"detail": exc.detail},
+        },
+    )
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:

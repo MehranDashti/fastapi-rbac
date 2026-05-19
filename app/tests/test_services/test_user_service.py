@@ -1,7 +1,13 @@
 import pytest
-from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import (
+    AuthenticationError,
+    ConflictError,
+    InactiveAccountError,
+    NotFoundError,
+)
+from app.core.permissions import get_all_permissions
 from app.repositories.permission_repository import PermissionRepository
 from app.repositories.role_repository import RoleRepository
 from app.repositories.user_repository import UserRepository
@@ -32,27 +38,25 @@ async def test_register_success(db_session: AsyncSession):
 async def test_register_duplicate_email(db_session: AsyncSession):
     await make_user(db_session, email="dup@test.com", username="first")
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ConflictError):
         await service.register(
             email="dup@test.com",
             username="second",
             full_name="Second",
             password="Password1",
         )
-    assert exc.value.status_code == 409
 
 
 async def test_register_duplicate_username(db_session: AsyncSession):
     await make_user(db_session, email="first@test.com", username="taken")
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ConflictError):
         await service.register(
             email="second@test.com",
             username="taken",
             full_name="Second",
             password="Password1",
         )
-    assert exc.value.status_code == 409
 
 
 async def test_authenticate_success(db_session: AsyncSession):
@@ -65,9 +69,8 @@ async def test_authenticate_success(db_session: AsyncSession):
 async def test_authenticate_wrong_password(db_session: AsyncSession):
     await make_user(db_session, email="auth@test.com", username="authuser", password="Password1")
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AuthenticationError):
         await service.authenticate("auth@test.com", "WrongPass1")
-    assert exc.value.status_code == 401
 
 
 async def test_authenticate_inactive_user(db_session: AsyncSession):
@@ -76,9 +79,8 @@ async def test_authenticate_inactive_user(db_session: AsyncSession):
         password="Password1", is_active=False,
     )
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(InactiveAccountError):
         await service.authenticate("inactive@test.com", "Password1")
-    assert exc.value.status_code == 403
 
 
 async def test_toggle_active(db_session: AsyncSession):
@@ -118,25 +120,22 @@ async def test_assign_role_already_assigned(db_session: AsyncSession):
     role = await make_role(db_session)
     service = make_service(db_session)
     await service.assign_role(user.id, role.id)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ConflictError):
         await service.assign_role(user.id, role.id)
-    assert exc.value.status_code == 409
 
 
 async def test_assign_role_user_not_found(db_session: AsyncSession):
     role = await make_role(db_session)
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(NotFoundError):
         await service.assign_role(9999, role.id)
-    assert exc.value.status_code == 404
 
 
 async def test_assign_role_role_not_found(db_session: AsyncSession):
     user = await make_user(db_session)
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(NotFoundError):
         await service.assign_role(user.id, 9999)
-    assert exc.value.status_code == 404
 
 
 async def test_revoke_role_success(db_session: AsyncSession):
@@ -152,9 +151,8 @@ async def test_revoke_role_not_assigned(db_session: AsyncSession):
     user = await make_user(db_session)
     role = await make_role(db_session)
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ConflictError):
         await service.revoke_role(user.id, role.id)
-    assert exc.value.status_code == 409
 
 
 async def test_sync_roles(db_session: AsyncSession):
@@ -182,9 +180,8 @@ async def test_assign_direct_permission_already_assigned(db_session: AsyncSessio
     perm = await make_permission(db_session, name="posts.read")
     service = make_service(db_session)
     await service.assign_direct_permission(user.id, perm.id)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ConflictError):
         await service.assign_direct_permission(user.id, perm.id)
-    assert exc.value.status_code == 409
 
 
 async def test_revoke_direct_permission_success(db_session: AsyncSession):
@@ -200,9 +197,8 @@ async def test_revoke_direct_permission_not_assigned(db_session: AsyncSession):
     user = await make_user(db_session)
     perm = await make_permission(db_session, name="posts.read")
     service = make_service(db_session)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ConflictError):
         await service.revoke_direct_permission(user.id, perm.id)
-    assert exc.value.status_code == 409
 
 
 async def test_sync_direct_permissions(db_session: AsyncSession):
@@ -227,8 +223,7 @@ async def test_get_all_permissions_via_role(db_session: AsyncSession):
     await db_session.flush()
     await db_session.refresh(user)
 
-    service = make_service(db_session)
-    all_perms = service.get_all_permissions(user)
+    all_perms = get_all_permissions(user)
     assert "orders.read" in all_perms
 
 
@@ -239,8 +234,7 @@ async def test_get_all_permissions_direct(db_session: AsyncSession):
     await db_session.flush()
     await db_session.refresh(user)
 
-    service = make_service(db_session)
-    all_perms = service.get_all_permissions(user)
+    all_perms = get_all_permissions(user)
     assert "orders.write" in all_perms
 
 
@@ -258,6 +252,5 @@ async def test_get_all_permissions_union(db_session: AsyncSession):
     await db_session.flush()
     await db_session.refresh(user)
 
-    service = make_service(db_session)
-    all_perms = service.get_all_permissions(user)
+    all_perms = get_all_permissions(user)
     assert all_perms == {"shared.perm", "direct.only"}

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.core.dependencies import get_user_service
-from app.core.permissions import require_permission
+from app.core.permissions import get_all_permissions, require_permission
 from app.core.response import created, ok
 from app.db.pagination import Page, PaginationParams
 from app.filters.user_filter import UserFilterParams
@@ -46,7 +46,7 @@ async def get_user(
     service: UserService = Depends(get_user_service),
 ):
     user = await service.get_by_id_with_roles_and_permissions(user_id)
-    return ok(UserDetailResponse.from_user(user, service.get_all_permissions(user)))
+    return ok(UserDetailResponse.from_user(user, get_all_permissions(user)))
 
 
 @router.post(
@@ -67,7 +67,7 @@ async def create_user(
     if body.role_ids:
         user = await service.sync_roles(user.id, body.role_ids)
     user = await service.get_by_id_with_roles_and_permissions(user.id)
-    return created(UserDetailResponse.from_user(user, service.get_all_permissions(user)))
+    return created(UserDetailResponse.from_user(user, get_all_permissions(user)))
 
 
 @router.patch(
@@ -94,7 +94,7 @@ async def assign_role_to_user(
     service: UserService = Depends(get_user_service),
 ):
     user = await service.assign_role(user_id, body.role_id)
-    return ok(UserDetailResponse.from_user(user, service.get_all_permissions(user)))
+    return ok(UserDetailResponse.from_user(user, get_all_permissions(user)))
 
 
 @router.delete(
@@ -108,7 +108,7 @@ async def revoke_role_from_user(
     service: UserService = Depends(get_user_service),
 ):
     user = await service.revoke_role(user_id, role_id)
-    return ok(UserDetailResponse.from_user(user, service.get_all_permissions(user)))
+    return ok(UserDetailResponse.from_user(user, get_all_permissions(user)))
 
 
 @router.post(
@@ -122,7 +122,7 @@ async def assign_direct_permission_to_user(
     service: UserService = Depends(get_user_service),
 ):
     user = await service.assign_direct_permission(user_id, body.permission_id)
-    return ok(UserDetailResponse.from_user(user, service.get_all_permissions(user)))
+    return ok(UserDetailResponse.from_user(user, get_all_permissions(user)))
 
 
 @router.delete(
@@ -136,4 +136,4 @@ async def revoke_direct_permission_from_user(
     service: UserService = Depends(get_user_service),
 ):
     user = await service.revoke_direct_permission(user_id, permission_id)
-    return ok(UserDetailResponse.from_user(user, service.get_all_permissions(user)))
+    return ok(UserDetailResponse.from_user(user, get_all_permissions(user)))
