@@ -17,6 +17,7 @@ A role-based access control (RBAC) API built with FastAPI, SQLAlchemy (async), a
 | DB (production) | MySQL via aiomysql |
 | DB (tests) | SQLite via aiosqlite |
 | Testing | pytest + pytest-asyncio + httpx |
+| Scheduling | croniter (cron expression matching) |
 
 ---
 
@@ -204,57 +205,6 @@ app/tests/
     ├── test_role_routes.py               # Admin role route tests
     └── test_permission_routes.py         # Admin permission route tests
 ```
-
----
-
-## API Overview
-
-### Auth endpoints (public / authenticated)
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/api/v1/auth/signup` | Public | Register a new user |
-| `POST` | `/api/v1/auth/login` | Public | Login, receive access + refresh tokens |
-| `POST` | `/api/v1/auth/refresh` | Public | Issue new access token via refresh token |
-| `POST` | `/api/v1/auth/logout` | Bearer | Logout (client-side token discard) |
-| `GET` | `/api/v1/auth/profile` | Bearer | Get current user profile with roles and permissions |
-| `PATCH` | `/api/v1/auth/profile` | Bearer | Update current user's name or password |
-
-### Admin — Users
-
-| Method | Path | Permission |
-|--------|------|-----------|
-| `GET` | `/api/v1/admin/users` | `users.read` |
-| `GET` | `/api/v1/admin/users/{id}` | `users.read` |
-| `POST` | `/api/v1/admin/users` | `users.create` |
-| `PATCH` | `/api/v1/admin/users/{id}/toggle-active` | `users.update` |
-| `POST` | `/api/v1/admin/users/{id}/roles` | `users.update` |
-| `DELETE` | `/api/v1/admin/users/{id}/roles/{rid}` | `users.update` |
-| `POST` | `/api/v1/admin/users/{id}/permissions` | `users.update` |
-| `DELETE` | `/api/v1/admin/users/{id}/permissions/{pid}` | `users.update` |
-
-### Admin — Roles
-
-| Method | Path | Permission |
-|--------|------|-----------|
-| `GET` | `/api/v1/admin/roles` | `roles.read` |
-| `GET` | `/api/v1/admin/roles/{id}` | `roles.read` |
-| `POST` | `/api/v1/admin/roles` | `roles.create` |
-| `PATCH` | `/api/v1/admin/roles/{id}` | `roles.update` |
-| `DELETE` | `/api/v1/admin/roles/{id}` | `roles.delete` |
-| `POST` | `/api/v1/admin/roles/{id}/permissions` | `roles.update` |
-| `DELETE` | `/api/v1/admin/roles/{id}/permissions/{pid}` | `roles.update` |
-
-### Admin — Permissions
-
-| Method | Path | Permission |
-|--------|------|-----------|
-| `GET` | `/api/v1/admin/permissions` | `permissions.read` |
-| `GET` | `/api/v1/admin/permissions/{id}` | `permissions.read` |
-| `POST` | `/api/v1/admin/permissions` | `permissions.create` |
-| `PATCH` | `/api/v1/admin/permissions/{id}` | `permissions.update` |
-| `DELETE` | `/api/v1/admin/permissions/{id}` | `permissions.delete` |
-
 ---
 
 ## RBAC Design
@@ -290,33 +240,108 @@ async def my_route(user: User = Depends(get_current_user)):
 
 ---
 
+## Command Scheduler
+
+The project includes a Laravel-inspired command scheduler. Commands are plain Python classes; the scheduler runs them on a cron schedule via a single OS cron entry.
+
+### Available CLI commands
+
+```bash
+# List all registered commands
+python manage.py list
+
+# Run a command manually by name
+python manage.py run example:run
+
+# Run all commands whose cron expression matches the current time
+python manage.py schedule:run
+```
+
+### Creating a new command
+
+1. Create `app/commands/your_command.py`:
+
+```python
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.commands.base import BaseCommand
+
+class YourCommand(BaseCommand):
+    name = "your:command"
+    description = "What this command does"
+
+    async def handle(self, db: AsyncSession) -> None:
+        # Use db for ORM queries via repositories
+        print("→ Running...")
+        print("✔ Done.")
+```
+
+2. Register it in `app/commands/kernel.py`:
+
+```python
+from app.commands.your_command import YourCommand
+
+COMMANDS = [YourCommand]
+
+SCHEDULE = [
+    {"command": YourCommand, "cron": "0 0 * * *"},  # daily at midnight
+]
+```
+
+### Scheduling with OS cron (recommended)
+
+Add a single cron entry that runs every minute — just like Laravel's scheduler:
+
+```
+* * * * * cd /path/to/project && venv/bin/python manage.py schedule:run >> /var/log/scheduler.log 2>&1
+```
+
+`croniter` evaluates each command's cron expression against the current time and only runs commands that are due.
+
+---
+
 ## Project Structure
 
 ```
 fastapi-rbac/
 ├── app/
 │   ├── api/v1/
-│   │   ├── router/          # Aggregated API router
-│   │   └── routers/         # Individual route modules
+│   │   ├── router/              # Top-level aggregated API router
+│   │   └── routers/
+│   │       ├── client/          # Auth / client-facing routes
+│   │       │   └── user_router.py
+│   │       └── admin/           # Admin routes (require permissions)
+│   │           ├── user_router.py
+│   │           ├── role_router.py
+│   │           └── permission_router.py
+│   ├── commands/
+│   │   ├── base.py              # BaseCommand abstract class
+│   │   ├── kernel.py            # COMMANDS and SCHEDULE registry
+│   │   └── example_command.py   # Template — copy to add a new command
 │   ├── core/
-│   │   ├── config.py        # Settings (reads .env)
-│   │   ├── dependencies.py  # get_current_user, service factories
-│   │   ├── permissions.py   # RBAC engine + dependency factories
-│   │   └── security.py      # JWT and bcrypt helpers
+│   │   ├── config.py            # Settings (reads .env)
+│   │   ├── dependencies.py      # get_current_user, service factories
+│   │   ├── permissions.py       # RBAC engine + dependency factories
+│   │   └── security.py          # JWT and bcrypt helpers
 │   ├── db/
-│   │   ├── session.py       # Async engine, Base, get_db
-│   │   └── pagination.py    # Page[T], PaginationParams
-│   ├── models/              # SQLAlchemy ORM models
-│   ├── repositories/        # Data access layer (flush, never commit)
-│   ├── services/            # Business logic (raises HTTPException)
-│   ├── schemas/             # Pydantic request/response schemas
-│   ├── migrations/          # Alembic migration scripts
-│   └── tests/               # Full test suite
-├── main.py                  # FastAPI app factory
-├── run.py                   # Uvicorn entry point
-├── seed.py                  # DB bootstrap (permissions + admin user)
+│   │   ├── session.py           # Async engine, Base, get_db
+│   │   └── pagination.py        # Page[T], PaginationParams
+│   ├── filters/
+│   │   ├── base.py              # BaseFilter + FilterFn
+│   │   ├── user_filter.py       # UserFilter + UserFilterParams
+│   │   ├── role_filter.py       # RoleFilter + RoleFilterParams
+│   │   └── permission_filter.py # PermissionFilter + PermissionFilterParams
+│   ├── models/                  # SQLAlchemy ORM models
+│   ├── repositories/            # Data access layer (flush, never commit)
+│   ├── services/                # Business logic (raises HTTPException)
+│   ├── schemas/                 # Pydantic request/response schemas
+│   ├── migrations/              # Alembic migration scripts
+│   └── tests/                   # Full test suite
+├── main.py                      # FastAPI app factory
+├── manage.py                    # Command scheduler CLI entry point
+├── run.py                       # Uvicorn entry point
+├── seed.py                      # DB bootstrap (permissions + admin user)
 ├── alembic.ini
 ├── requirements.txt
 ├── .env.example
-└── .env                     # Your local config (not committed)
+└── .env                         # Your local config (not committed)
 ```
