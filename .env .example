@@ -20,4 +20,11 @@ SECRET_KEY=your-super-secret-key-change-in-production-min-32-chars
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
 ALGORITHM=HS256
- 
+
+# ── seed script (python seed.py) ──────────────────────────────────────────────
+# These are only read by seed.py — not used by the app at runtime.
+# Change before running seed.py in production.
+SEED_ADMIN_EMAIL=admin@example.com
+SEED_ADMIN_USERNAME=admin
+SEED_ADMIN_FULLNAME=System Administrator
+SEED_ADMIN_PASSWORD=Admin1234
