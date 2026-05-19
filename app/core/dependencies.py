@@ -1,6 +1,5 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_token
@@ -52,22 +51,22 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    try:
-        payload = decode_token(credentials.credentials)
-        user_id: int | None = payload.get("sub")
-        token_type: str | None = payload.get("type")
-        if user_id is None or token_type != "access":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except JWTError:
+    payload = decode_token(credentials.credentials)
+    if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    sub: str | None = payload.get("sub")
+    token_type: str | None = payload.get("type")
+    if sub is None or token_type != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user_id = int(sub)
 
     user_repo = UserRepository(db)
     user = await user_repo.get_with_roles_and_permissions(user_id)

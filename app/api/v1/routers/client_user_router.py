@@ -60,22 +60,20 @@ async def refresh_token(
     body: RefreshTokenRequest,
     service: UserService = Depends(get_user_service),
 ) -> TokenResponse:
-    from jose import JWTError
-
-    try:
-        payload = decode_token(body.refresh_token)
-        user_id: int | None = payload.get("sub")
-        token_type: str | None = payload.get("type")
-        if user_id is None or token_type != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token.",
-            )
-    except JWTError:
+    payload = decode_token(body.refresh_token)
+    if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate refresh token.",
         )
+    sub: str | None = payload.get("sub")
+    token_type: str | None = payload.get("type")
+    if sub is None or token_type != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token.",
+        )
+    user_id = int(sub)
 
     user = await service.get_by_id(user_id)
     if not user.is_active:
