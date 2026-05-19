@@ -19,7 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 load_dotenv()
 
-DATABASE_URL: str = os.environ["DATABASE_URL"]
+from app.core.config import settings  # noqa: E402
+
+DATABASE_URL: str = settings.DATABASE_URL
+
+FIRST_ADMIN = {
+    "email":     settings.SEED_ADMIN_EMAIL,
+    "username":  settings.SEED_ADMIN_USERNAME,
+    "full_name": settings.SEED_ADMIN_FULLNAME,
+    "password":  settings.SEED_ADMIN_PASSWORD,
+}
 
 # ── system permissions ────────────────────────────────────────────────────────
 # Convention: "resource.action"
@@ -43,12 +52,7 @@ SYSTEM_PERMISSIONS: list[tuple[str, str]] = [
 
 SUPERADMIN_ROLE = ("superadmin", "Super Administrator")
 
-FIRST_ADMIN = {
-    "email":     os.getenv("SEED_ADMIN_EMAIL",    "admin@example.com"),
-    "username":  os.getenv("SEED_ADMIN_USERNAME", "admin"),
-    "full_name": os.getenv("SEED_ADMIN_FULLNAME", "System Administrator"),
-    "password":  os.getenv("SEED_ADMIN_PASSWORD", "Admin1234"),
-}
+
 
 
 async def seed() -> None:
@@ -83,6 +87,10 @@ async def seed() -> None:
                     db.add(perm)
                     await db.flush()
                     print(f"   ✔ created  {name}")
+                elif perm.display_name != display_name:
+                    perm.display_name = display_name
+                    await db.flush()
+                    print(f"   ↻ updated  {name}")
                 else:
                     print(f"   — exists   {name}")
                 permissions[name] = perm
