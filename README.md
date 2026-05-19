@@ -21,15 +21,13 @@ A role-based access control (RBAC) API built with FastAPI, SQLAlchemy (async), a
 
 ---
 
-## Prerequisites
+## Quick Start (Docker)
 
-- Python 3.12+
-- MySQL 8.0+ (for production) — tests use in-memory SQLite, no MySQL required for testing
-- `pip` and `venv`
+The fastest way to get a fully working stack — app + MySQL — with a single command.
 
----
+### Prerequisites
 
-## Installation
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/)
 
 ### 1. Clone the repository
 
@@ -38,55 +36,131 @@ git clone <repository-url>
 cd fastapi-rbac
 ```
 
-### 2. Create and activate a virtual environment
-
-```bash
-python3.12 -m venv venv
-
-# Linux / macOS
-source venv/bin/activate
-
-# Windows
-venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## Configuration
-
-### 1. Create your `.env` file from the example
+### 2. Create your `.env` file
 
 ```bash
 cp .env.example .env
 ```
 
-### 2. Edit `.env`
+Set a secure `SECRET_KEY` (minimum 32 characters):
+
+```bash
+# generate one and paste it into .env
+openssl rand -hex 32
+```
+
+### 3. Start the stack
+
+```bash
+docker compose up --build
+```
+
+On first run this will:
+1. Pull the MySQL 8.0 image and start the database
+2. Build the application image
+3. Wait until MySQL is healthy
+4. Run all Alembic migrations automatically
+5. Seed the database (12 permissions + superadmin role + admin user)
+6. Start the FastAPI server
+
+The app is available at **`http://localhost:8000`** once you see:
+
+```
+fastapi-rbac  | → Starting application...
+fastapi-rbac  | INFO:     Application startup complete.
+```
+
+### 4. Default admin credentials
+
+| Field | Value |
+|-------|-------|
+| Email | `admin@example.com` |
+| Password | `Admin1234` |
+
+Override before first run by editing `SEED_ADMIN_*` variables in `.env`.
+
+### Useful Docker commands
+
+```bash
+# Start in background
+docker compose up -d
+
+# View logs
+docker compose logs -f app
+
+# Stop everything (data is preserved in the db_data volume)
+docker compose down
+
+# Stop and wipe all data
+docker compose down -v
+
+# Rebuild after code changes
+docker compose up --build
+
+# Run a one-off command inside the container
+docker compose exec app python manage.py seed:list
+docker compose exec app alembic upgrade head
+```
+
+### Development mode (live reload)
+
+Uncomment the volume mount in `docker-compose.yml`:
+
+```yaml
+    volumes:
+      - ./app:/app/app
+```
+
+Then restart: `docker compose up`. Code changes in `app/` will trigger an automatic reload.
+
+---
+
+## Manual Setup (without Docker)
+
+Use this path if you prefer to manage MySQL separately or run the app directly on your machine.
+
+### Prerequisites
+
+- Python 3.12+
+- MySQL 8.0+
+- `pip` and `venv`
+
+### 1. Clone and create a virtual environment
+
+```bash
+git clone <repository-url>
+cd fastapi-rbac
+
+python3.12 -m venv venv
+source venv/bin/activate       # Linux / macOS
+# venv\Scripts\activate        # Windows
+```
+
+### 2. Install dependencies
+
+```bash
+# Production dependencies
+pip install -r requirements.txt
+
+# Development + test dependencies
+pip install -r requirements-dev.txt
+```
+
+### 3. Configure `.env`
+
+```bash
+cp .env.example .env
+```
 
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `DATABASE_URL` | Async MySQL connection string | `mysql+aiomysql://user:password@localhost:3306/mydb` |
 | `SECRET_KEY` | JWT signing key — minimum 32 random characters | `openssl rand -hex 32` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime in minutes | `30` |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime in days | `7` |
-| `PRODUCTION` | Disables `/docs`, `/redoc`, `/openapi.json` when `true` | `false` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime | `30` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime | `7` |
+| `PRODUCTION` | Disables `/docs` and `/redoc` when `true` | `false` |
 
-Generate a secure `SECRET_KEY`:
-
-```bash
-openssl rand -hex 32
-```
-
----
-
-## Database Setup
-
-### 1. Create the MySQL database
+### 4. Create the MySQL database
 
 ```sql
 CREATE DATABASE mydb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -95,52 +169,20 @@ GRANT ALL PRIVILEGES ON mydb.* TO 'user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-### 2. Run migrations
+### 5. Run migrations and seed
 
 ```bash
 alembic upgrade head
-```
-
-This creates in order:
-- `users` (migration `0001`)
-- `permissions`, `roles`, `role_permissions`, `user_roles`, `user_permissions` (migration `0002`)
-
-### 3. Seed the database
-
-```bash
 python seed.py
 ```
 
-This runs all registered seeders in sequence:
-
-| Seeder | What it creates |
-|--------|----------------|
-| `permissions` | 12 system permissions (`users.read`, `users.create`, …, `permissions.delete`) |
-| `roles` | `superadmin` role with all 12 permissions assigned |
-| `users` | First admin user assigned to the superadmin role |
-
-The seed is **idempotent** — safe to run multiple times. Existing records are left untouched.
-
-Override the default admin credentials via environment variables:
-
-```bash
-SEED_ADMIN_EMAIL=you@company.com \
-SEED_ADMIN_USERNAME=yourusername \
-SEED_ADMIN_PASSWORD=YourSecret123 \
-python seed.py
-```
-
----
-
-## Running the Application
+### 6. Start the server
 
 ```bash
 python run.py
 ```
 
-The server starts on `http://0.0.0.0:8000` by default (configurable via `.env`).
-
-When `PRODUCTION=false` (the default), interactive API documentation is available at:
+The server starts on `http://0.0.0.0:8000`. When `PRODUCTION=false`:
 
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
@@ -150,13 +192,13 @@ When `PRODUCTION=false` (the default), interactive API documentation is availabl
 
 ## Running Tests
 
-Tests use an in-memory SQLite database — **no MySQL or `.env` required**.
+Tests use an in-memory SQLite database — **no MySQL, no Docker, no `.env` required**.
 
 ```bash
 # All tests
 venv/bin/pytest
 
-# Verbose output
+# Verbose
 venv/bin/pytest -v
 
 # Short tracebacks on failure
@@ -384,12 +426,18 @@ fastapi-rbac/
 │   ├── schemas/                 # Pydantic request/response schemas
 │   ├── migrations/              # Alembic migration scripts
 │   └── tests/                   # Full test suite (131 tests)
+├── docker/
+│   ├── Dockerfile               # Production image (cache-optimised, non-root)
+│   └── entrypoint.sh            # migrate → seed → start on container boot
 ├── main.py                      # FastAPI app factory
 ├── manage.py                    # Commands + seeders CLI entry point
 ├── run.py                       # Uvicorn entry point
 ├── seed.py                      # Thin runner — delegates to app/seeders/
+├── docker-compose.yml           # App + MySQL services with healthcheck
+├── .dockerignore
 ├── alembic.ini
-├── requirements.txt
+├── requirements.txt             # Production dependencies
+├── requirements-dev.txt         # Test/dev dependencies (extends requirements.txt)
 ├── .env.example
 └── .env                         # Your local config (not committed)
 ```
