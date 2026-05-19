@@ -5,33 +5,25 @@ from app.models.user import User
 from app.repositories.permission_repository import PermissionRepository
 from app.repositories.role_repository import RoleRepository
 from app.repositories.user_repository import UserRepository
+from app.services.base import BaseService
 
 
-class UserService:
+class UserService(BaseService[User]):
     def __init__(
         self,
         user_repo: UserRepository,
         role_repo: RoleRepository,
         permission_repo: PermissionRepository,
     ) -> None:
-        self.user_repo = user_repo
+        super().__init__(user_repo)
+        self.repo: UserRepository
         self.role_repo = role_repo
         self.permission_repo = permission_repo
 
-    # ── auth ──────────────────────────────────────────────────────────────────
-
-    async def get_by_id(self, user_id: int) -> User:
-        user = await self.user_repo.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with id {user_id} not found.",
-            )
-        return user
+    # ── auth lookups ──────────────────────────────────────────────────────────
 
     async def get_by_id_with_roles_and_permissions(self, user_id: int) -> User:
-        """Used by auth dependency — returns fully populated user."""
-        user = await self.user_repo.get_with_roles_and_permissions(user_id)
+        user = await self.repo.get_with_roles_and_permissions(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -40,13 +32,15 @@ class UserService:
         return user
 
     async def get_by_email(self, email: str) -> User:
-        user = await self.user_repo.get_by_email(email)
+        user = await self.repo.get_by_email(email)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found.",
             )
         return user
+
+    # ── auth ──────────────────────────────────────────────────────────────────
 
     async def register(
         self,
@@ -55,12 +49,12 @@ class UserService:
         full_name: str,
         password: str,
     ) -> User:
-        if await self.user_repo.email_exists(email):
+        if await self.repo.email_exists(email):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="A user with this email already exists.",
             )
-        if await self.user_repo.username_exists(username):
+        if await self.repo.username_exists(username):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="A user with this username already exists.",
@@ -71,10 +65,10 @@ class UserService:
             full_name=full_name,
             hashed_password=get_password_hash(password),
         )
-        return await self.user_repo.create(user)
+        return await self.repo.create(user)
 
     async def authenticate(self, email: str, password: str) -> User:
-        user = await self.user_repo.get_by_email(email)
+        user = await self.repo.get_by_email(email)
         if not user or not verify_password(password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -97,19 +91,14 @@ class UserService:
             user.full_name = full_name
         if password is not None:
             user.hashed_password = get_password_hash(password)
-        await self.user_repo.db.flush()
-        await self.user_repo.db.refresh(user)
-        return user
+        return await self._flush_refresh(user)
 
     async def toggle_active(self, user_id: int) -> User:
         user = await self.get_by_id(user_id)
         user.is_active = not user.is_active
-        await self.user_repo.db.flush()
-        await self.user_repo.db.refresh(user)
-        return user
+        return await self._flush_refresh(user)
 
-    async def get_all(self) -> list[User]:
-        return await self.user_repo.get_all()
+    # get_by_id, get_all → inherited from BaseService
 
     # ── role assignment ───────────────────────────────────────────────────────
 
@@ -126,7 +115,7 @@ class UserService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Role '{role.name}' is already assigned to this user.",
             )
-        await self.user_repo.assign_role(user, role)
+        await self.repo.assign_role(user, role)
         return user
 
     async def revoke_role(self, user_id: int, role_id: int) -> User:
@@ -142,11 +131,10 @@ class UserService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Role '{role.name}' is not assigned to this user.",
             )
-        await self.user_repo.revoke_role(user, role)
+        await self.repo.revoke_role(user, role)
         return user
 
     async def sync_roles(self, user_id: int, role_ids: list[int]) -> User:
-        """Replace user's roles entirely with the given role id list."""
         user = await self.get_by_id_with_roles_and_permissions(user_id)
         roles = []
         for role_id in role_ids:
@@ -157,7 +145,7 @@ class UserService:
                     detail=f"Role with id {role_id} not found.",
                 )
             roles.append(role)
-        await self.user_repo.sync_roles(user, roles)
+        await self.repo.sync_roles(user, roles)
         return user
 
     # ── direct permission assignment ──────────────────────────────────────────
@@ -175,7 +163,7 @@ class UserService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Permission '{permission.name}' is already directly assigned to this user.",
             )
-        await self.user_repo.assign_direct_permission(user, permission)
+        await self.repo.assign_direct_permission(user, permission)
         return user
 
     async def revoke_direct_permission(self, user_id: int, permission_id: int) -> User:
@@ -191,11 +179,10 @@ class UserService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Permission '{permission.name}' is not directly assigned to this user.",
             )
-        await self.user_repo.revoke_direct_permission(user, permission)
+        await self.repo.revoke_direct_permission(user, permission)
         return user
 
     async def sync_direct_permissions(self, user_id: int, permission_ids: list[int]) -> User:
-        """Replace user's direct permissions entirely with the given permission id list."""
         user = await self.get_by_id_with_roles_and_permissions(user_id)
         permissions = []
         for permission_id in permission_ids:
@@ -206,18 +193,12 @@ class UserService:
                     detail=f"Permission with id {permission_id} not found.",
                 )
             permissions.append(permission)
-        await self.user_repo.sync_direct_permissions(user, permissions)
+        await self.repo.sync_direct_permissions(user, permissions)
         return user
 
     # ── permission resolution ─────────────────────────────────────────────────
 
     def get_all_permissions(self, user: User) -> set[str]:
-        """
-        Resolve every permission name the user holds — union of:
-          - all permissions from every assigned role
-          - all directly assigned permissions
-        This mirrors Spatie's getAllPermissions() behavior.
-        """
         from_roles: set[str] = {
             permission.name
             for role in user.roles

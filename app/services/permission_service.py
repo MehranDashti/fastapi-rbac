@@ -2,23 +2,20 @@ from fastapi import HTTPException, status
 
 from app.models.permission import Permission
 from app.repositories.permission_repository import PermissionRepository
+from app.services.base import BaseService
 
 
-class PermissionService:
+class PermissionService(BaseService[Permission]):
     def __init__(self, repo: PermissionRepository) -> None:
-        self.repo = repo
+        super().__init__(repo)
+        self.repo: PermissionRepository
 
-    async def get_all(self, guard_name: str = "api") -> list[Permission]:
+    # ── overrides ─────────────────────────────────────────────────────────────
+
+    async def get_all(self, guard_name: str = "api") -> list[Permission]:  # type: ignore[override]
         return await self.repo.get_all_by_guard(guard_name)
 
-    async def get_by_id(self, permission_id: int) -> Permission:
-        permission = await self.repo.get_by_id(permission_id)
-        if not permission:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Permission with id {permission_id} not found.",
-            )
-        return permission
+    # ── domain lookups ────────────────────────────────────────────────────────
 
     async def get_by_name(self, name: str, guard_name: str = "api") -> Permission:
         permission = await self.repo.get_by_name(name, guard_name)
@@ -28,6 +25,8 @@ class PermissionService:
                 detail=f"Permission '{name}' not found.",
             )
         return permission
+
+    # ── CRUD ──────────────────────────────────────────────────────────────────
 
     async def create(
         self,
@@ -47,6 +46,9 @@ class PermissionService:
         )
         return await self.repo.create(permission)
 
-    async def delete(self, permission_id: int) -> None:
+    async def update(self, permission_id: int, display_name: str) -> Permission:
         permission = await self.get_by_id(permission_id)
-        await self.repo.delete(permission)
+        permission.display_name = display_name
+        return await self._flush_refresh(permission)
+
+    # get_by_id, delete → inherited from BaseService
