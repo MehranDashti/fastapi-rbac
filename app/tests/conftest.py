@@ -172,7 +172,7 @@ async def admin_headers(client: AsyncClient) -> dict[str, str]:
         "/api/v1/auth/login",
         json={"email": "admin@test.com", "password": "Admin1234"},
     )
-    token = resp.json()["access_token"]
+    token = resp.json()["data"]["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -188,5 +188,5 @@ async def user_headers(client: AsyncClient) -> dict[str, str]:
         "email": "user@test.com",
         "password": "Password1",
     })
-    token = resp.json()["access_token"]
+    token = resp.json()["data"]["access_token"]
     return {"Authorization": f"Bearer {token}"}

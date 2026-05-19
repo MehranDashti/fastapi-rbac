@@ -2,12 +2,20 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.core.exception_handler import (
+    http_exception_handler,
+    unhandled_exception_handler,
+    validation_exception_handler,
+)
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
+from app.core.response import ok
 from app.db.session import create_tables, drop_tables
 
 
@@ -37,11 +45,15 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(RequestLoggingMiddleware)
 
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
+
     app.include_router(api_router)
 
     @app.get("/health", tags=["Health"], include_in_schema=not settings.PRODUCTION)
-    async def health() -> dict:
-        return {"status": "ok", "version": settings.APP_VERSION}
+    async def health():
+        return ok({"status": "ok", "version": settings.APP_VERSION})
 
     return app
 

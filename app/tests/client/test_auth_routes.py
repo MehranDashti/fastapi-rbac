@@ -10,7 +10,7 @@ async def test_signup_success(client: AsyncClient):
         "password": "Password1",
     })
     assert resp.status_code == 201
-    data = resp.json()
+    data = resp.json()["data"]
     assert data["email"] == "new@test.com"
     assert data["username"] == "newuser"
 
@@ -45,7 +45,7 @@ async def test_login_success(client: AsyncClient):
         "password": "Password1",
     })
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["data"]
     assert "access_token" in data
     assert "refresh_token" in data
 
@@ -75,10 +75,10 @@ async def test_refresh_success(client: AsyncClient):
         "email": "refresh@test.com",
         "password": "Password1",
     })
-    refresh_token = login.json()["refresh_token"]
+    refresh_token = login.json()["data"]["refresh_token"]
     resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
     assert resp.status_code == 200
-    assert "access_token" in resp.json()
+    assert "access_token" in resp.json()["data"]
 
 
 async def test_refresh_with_access_token(client: AsyncClient):
@@ -92,7 +92,7 @@ async def test_refresh_with_access_token(client: AsyncClient):
         "email": "badrefresh@test.com",
         "password": "Password1",
     })
-    access_token = login.json()["access_token"]
+    access_token = login.json()["data"]["access_token"]
     resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": access_token})
     assert resp.status_code == 401
 
@@ -110,7 +110,7 @@ async def test_logout_unauthenticated(client: AsyncClient):
 async def test_get_profile(client: AsyncClient, user_headers: dict[str, str]):
     resp = await client.get("/api/v1/auth/profile", headers=user_headers)
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["data"]
     assert "email" in data
 
 
@@ -126,7 +126,7 @@ async def test_update_profile_name(client: AsyncClient, user_headers: dict[str, 
         json={"full_name": "Updated Name"},
     )
     assert resp.status_code == 200
-    assert resp.json()["full_name"] == "Updated Name"
+    assert resp.json()["data"]["full_name"] == "Updated Name"
 
 
 async def test_update_profile_password(client: AsyncClient, user_headers: dict[str, str]):
