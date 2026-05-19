@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, status
 
 from app.core.dependencies import get_role_service
 from app.core.permissions import require_permission
-from app.db.pagination import Page, PaginationParams, paginate
 from app.schemas.role import (
     AssignPermissionRequest,
     RoleCreate,
@@ -85,7 +84,6 @@ async def delete_role(
     await service.delete(role_id)
 
 
-# ── permission assignment ─────────────────────────────────────────────────────
 
 @router.post(
     "/{role_id}/permissions",

@@ -1,16 +1,3 @@
-"""
-seed.py
-
-Bootstrap the RBAC system from scratch:
-  1. Create all system permissions
-  2. Create a `superadmin` role and assign every permission to it
-  3. Create the first admin user and assign the superadmin role
-
-Run once after `alembic upgrade head`:
-    python seed.py
-
-Safe to re-run — all operations are idempotent.
-"""
 import asyncio
 import os
 
@@ -30,20 +17,15 @@ FIRST_ADMIN = {
     "password":  settings.SEED_ADMIN_PASSWORD,
 }
 
-# ── system permissions ────────────────────────────────────────────────────────
-# Convention: "resource.action"
 SYSTEM_PERMISSIONS: list[tuple[str, str]] = [
-    # users
     ("users.read",              "Read Users"),
     ("users.create",            "Create Users"),
     ("users.update",            "Update Users"),
     ("users.delete",            "Delete Users"),
-    # roles
     ("roles.read",              "Read Roles"),
     ("roles.create",            "Create Roles"),
     ("roles.update",            "Update Roles"),
     ("roles.delete",            "Delete Roles"),
-    # permissions
     ("permissions.read",        "Read Permissions"),
     ("permissions.create",      "Create Permissions"),
     ("permissions.update",      "Update Permissions"),
@@ -53,10 +35,7 @@ SYSTEM_PERMISSIONS: list[tuple[str, str]] = [
 SUPERADMIN_ROLE = ("superadmin", "Super Administrator")
 
 
-
-
 async def seed() -> None:
-    # import here so models register with Base.metadata
     import app.models  # noqa: F401
     from app.core.security import get_password_hash
     from app.models.permission import Permission
@@ -71,7 +50,6 @@ async def seed() -> None:
             from sqlalchemy import select
             from sqlalchemy.orm import selectinload
 
-            # ── 1. upsert permissions ─────────────────────────────────────────
             print("→ Seeding permissions...")
             permissions: dict[str, Permission] = {}
             for name, display_name in SYSTEM_PERMISSIONS:
@@ -95,7 +73,6 @@ async def seed() -> None:
                     print(f"   — exists   {name}")
                 permissions[name] = perm
 
-            # ── 2. upsert superadmin role ─────────────────────────────────────
             print("→ Seeding superadmin role...")
             role_name, role_display = SUPERADMIN_ROLE
             result = await db.execute(
@@ -112,14 +89,12 @@ async def seed() -> None:
             else:
                 print(f"   — exists   {role_name}")
 
-            # assign all permissions to superadmin role
             for perm in permissions.values():
                 if perm not in role.permissions:
                     role.permissions.append(perm)
             await db.flush()
             print(f"   ✔ {len(permissions)} permissions assigned to {role_name}")
 
-            # ── 3. upsert first admin user ────────────────────────────────────
             print("→ Seeding first admin user...")
             result = await db.execute(
                 select(User)

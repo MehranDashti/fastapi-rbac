@@ -20,8 +20,6 @@ class UserService(BaseService[User]):
         self.role_repo = role_repo
         self.permission_repo = permission_repo
 
-    # ── auth lookups ──────────────────────────────────────────────────────────
-
     async def get_by_id_with_roles_and_permissions(self, user_id: int) -> User:
         user = await self.repo.get_with_roles_and_permissions(user_id)
         if not user:
@@ -39,8 +37,6 @@ class UserService(BaseService[User]):
                 detail="User not found.",
             )
         return user
-
-    # ── auth ──────────────────────────────────────────────────────────────────
 
     async def register(
         self,
@@ -98,10 +94,6 @@ class UserService(BaseService[User]):
         user.is_active = not user.is_active
         return await self._flush_refresh(user)
 
-    # get_by_id, get_all → inherited from BaseService
-
-    # ── role assignment ───────────────────────────────────────────────────────
-
     async def assign_role(self, user_id: int, role_id: int) -> User:
         user = await self.get_by_id_with_roles_and_permissions(user_id)
         role = await self.role_repo.get_by_id(role_id)
@@ -148,8 +140,6 @@ class UserService(BaseService[User]):
         await self.repo.sync_roles(user, roles)
         return user
 
-    # ── direct permission assignment ──────────────────────────────────────────
-
     async def assign_direct_permission(self, user_id: int, permission_id: int) -> User:
         user = await self.get_by_id_with_roles_and_permissions(user_id)
         permission = await self.permission_repo.get_by_id(permission_id)
@@ -195,8 +185,6 @@ class UserService(BaseService[User]):
             permissions.append(permission)
         await self.repo.sync_direct_permissions(user, permissions)
         return user
-
-    # ── permission resolution ─────────────────────────────────────────────────
 
     def get_all_permissions(self, user: User) -> set[str]:
         from_roles: set[str] = {

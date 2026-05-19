@@ -5,7 +5,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
-# M2M: roles ↔ permissions
 role_permissions = Table(
     "role_permissions",
     Base.metadata,
@@ -52,7 +51,6 @@ class Role(Base):
         nullable=False,
     )
 
-    # M2M → permissions
     permissions: Mapped[list["Permission"]] = relationship(  # noqa: F821
         "Permission",
         secondary="role_permissions",
@@ -60,7 +58,6 @@ class Role(Base):
         lazy="selectin",
     )
 
-    # M2M → users (back-populated from User)
     users: Mapped[list["User"]] = relationship(  # noqa: F821
         "User",
         secondary="user_roles",

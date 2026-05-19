@@ -29,7 +29,6 @@ class Permission(Base):
         nullable=False,
     )
 
-    # relationships (back-populated from Role and User)
     roles: Mapped[list["Role"]] = relationship(  # noqa: F821
         "Role",
         secondary="role_permissions",

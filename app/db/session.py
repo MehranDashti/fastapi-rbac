@@ -9,11 +9,11 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
-    pool_size=10,           # number of persistent connections
-    max_overflow=20,        # extra connections beyond pool_size
-    pool_timeout=30,        # seconds to wait for a connection
-    pool_recycle=1800,      # recycle connections every 30min (prevents MySQL timeout drops)
-    pool_pre_ping=True,     # test connection health before using (handles dropped connections)
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+    pool_recycle=1800,
+    pool_pre_ping=True,
 )
 
 AsyncSessionLocal = async_sessionmaker(

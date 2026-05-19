@@ -9,11 +9,6 @@ T = TypeVar("T")
 
 
 class PaginationParams:
-    """
-    Reusable dependency for pagination query params.
-    Usage:  params: PaginationParams = Depends()
-    """
-
     def __init__(
         self,
         page: int = Query(default=1, ge=1, description="Page number (1-based)"),
@@ -72,22 +67,10 @@ async def paginate(
     query: Select,
     params: PaginationParams,
 ) -> tuple[list, int]:
-    """
-    Generic paginator for any SQLAlchemy select query.
-
-    Returns (items, total_count).
-
-    Example:
-        q = select(User).where(User.is_active == True)
-        items, total = await paginate(db, q, params)
-        return Page.create(items, total, params)
-    """
-    # Count total matching rows
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await db.execute(count_query)
     total: int = total_result.scalar_one()
 
-    # Fetch paginated items
     paginated_query = query.offset(params.offset).limit(params.limit)
     result = await db.execute(paginated_query)
     items = result.scalars().all()

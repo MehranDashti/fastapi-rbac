@@ -16,7 +16,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     setup_logging()
     await create_tables()
     yield
-    # nothing to tear down for now (connection pool closes itself)
 
 
 def create_app() -> FastAPI:
@@ -29,7 +28,6 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # ── middleware ────────────────────────────────────────────────────────────
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
@@ -39,10 +37,8 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(RequestLoggingMiddleware)
 
-    # ── routers ───────────────────────────────────────────────────────────────
     app.include_router(api_router)
 
-    # ── health ────────────────────────────────────────────────────────────────
     @app.get("/health", tags=["Health"], include_in_schema=not settings.PRODUCTION)
     async def health() -> dict:
         return {"status": "ok", "version": settings.APP_VERSION}

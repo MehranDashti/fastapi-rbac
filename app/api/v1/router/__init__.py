@@ -7,10 +7,7 @@ from app.api.v1.routers.permission_router import router as permission_router
  
 api_router = APIRouter(prefix="/api/v1")
  
-# ── public / client auth ──────────────────────────────────────────────────────
 api_router.include_router(auth_router)
- 
-# ── admin ─────────────────────────────────────────────────────────────────────
 api_router.include_router(admin_user_router,  prefix="/admin")
 api_router.include_router(role_router,        prefix="/admin")
 api_router.include_router(permission_router,  prefix="/admin")

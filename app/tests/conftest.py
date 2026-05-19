@@ -8,8 +8,6 @@ from app.db.session import Base, get_db
 from app.models.user import User, UserRole
 from main import app
 
-# ── In-memory SQLite for tests ────────────────────────────────────────────────
-
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
@@ -57,7 +55,6 @@ async def client() -> AsyncClient:
         yield ac
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 async def create_user(
     db: AsyncSession,

@@ -5,7 +5,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
-# M2M: users ↔ roles
 user_roles = Table(
     "user_roles",
     Base.metadata,
@@ -28,7 +27,6 @@ user_roles = Table(
     mysql_collate="utf8mb4_unicode_ci",
 )
 
-# M2M: users ↔ permissions  (direct — no role intermediary)
 user_permissions = Table(
     "user_permissions",
     Base.metadata,
@@ -78,7 +76,6 @@ class User(Base):
         nullable=False,
     )
 
-    # M2M → roles  (user gets permissions via roles)
     roles: Mapped[list["Role"]] = relationship(  # noqa: F821
         "Role",
         secondary="user_roles",
@@ -86,7 +83,6 @@ class User(Base):
         lazy="selectin",
     )
 
-    # M2M → permissions  (direct grants, bypassing roles — like Spatie's direct permissions)
     direct_permissions: Mapped[list["Permission"]] = relationship(  # noqa: F821
         "Permission",
         secondary="user_permissions",

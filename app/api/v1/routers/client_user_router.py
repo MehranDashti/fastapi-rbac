@@ -32,7 +32,6 @@ async def signup(
         full_name=body.full_name,
         password=body.password,
     )
-    # freshly registered user — no roles yet, empty permissions
     return UserDetailResponse.from_user(user, set())
 
 
@@ -99,8 +98,6 @@ async def refresh_token(
 async def logout(
     _: User = Depends(get_current_user),
 ) -> None:
-    # JWT is stateless — logout is client-side token discard.
-    # TODO: add token to Redis blacklist for server-side invalidation.
     return None
 
 

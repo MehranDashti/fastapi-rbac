@@ -9,7 +9,6 @@ def setup_logging() -> logging.Logger:
     logger = logging.getLogger("app")
     logger.setLevel(getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 
-    # Avoid adding duplicate handlers on reload
     if logger.handlers:
         return logger
 
@@ -18,12 +17,10 @@ def setup_logging() -> logging.Logger:
         datefmt="%Y-%m-%dT%H:%M:%S",
     )
 
-    # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # Syslog handler (UDP — non-blocking, won't crash if syslog unavailable)
     try:
         syslog_handler = logging.handlers.SysLogHandler(
             address=(settings.SYSLOG_HOST, settings.SYSLOG_PORT)

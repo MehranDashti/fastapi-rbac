@@ -12,8 +12,6 @@ class RoleService(BaseService[Role]):
         self.repo: RoleRepository
         self.permission_repo = permission_repo
 
-    # ── lookups ───────────────────────────────────────────────────────────────
-
     async def get_by_id_with_permissions(self, role_id: int) -> Role:
         role = await self.repo.get_with_permissions(role_id)
         if not role:
@@ -31,8 +29,6 @@ class RoleService(BaseService[Role]):
                 detail=f"Role '{name}' not found.",
             )
         return role
-
-    # ── CRUD ──────────────────────────────────────────────────────────────────
 
     async def create(
         self,
@@ -56,10 +52,6 @@ class RoleService(BaseService[Role]):
         role = await self.get_by_id(role_id)
         role.display_name = display_name
         return await self._flush_refresh(role)
-
-    # get_by_id, get_all, delete → inherited from BaseService
-
-    # ── permission assignment ─────────────────────────────────────────────────
 
     async def assign_permission(self, role_id: int, permission_id: int) -> Role:
         role = await self.get_by_id_with_permissions(role_id)

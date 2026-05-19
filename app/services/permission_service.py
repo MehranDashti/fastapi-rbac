@@ -10,12 +10,8 @@ class PermissionService(BaseService[Permission]):
         super().__init__(repo)
         self.repo: PermissionRepository
 
-    # ── overrides ─────────────────────────────────────────────────────────────
-
     async def get_all(self, guard_name: str = "api") -> list[Permission]:  # type: ignore[override]
         return await self.repo.get_all_by_guard(guard_name)
-
-    # ── domain lookups ────────────────────────────────────────────────────────
 
     async def get_by_name(self, name: str, guard_name: str = "api") -> Permission:
         permission = await self.repo.get_by_name(name, guard_name)
@@ -25,8 +21,6 @@ class PermissionService(BaseService[Permission]):
                 detail=f"Permission '{name}' not found.",
             )
         return permission
-
-    # ── CRUD ──────────────────────────────────────────────────────────────────
 
     async def create(
         self,
@@ -50,5 +44,3 @@ class PermissionService(BaseService[Permission]):
         permission = await self.get_by_id(permission_id)
         permission.display_name = display_name
         return await self._flush_refresh(permission)
-
-    # get_by_id, delete → inherited from BaseService

@@ -1,16 +1,3 @@
-"""
-app/core/dependencies.py
-
-FastAPI dependency callables shared across all routers.
-
-Auth flow:
-  1. get_current_user   — decodes JWT, loads User WITH roles + permissions from DB
-  2. Permission guards  — imported from app.core.permissions, wrap get_current_user
-
-The old CurrentAdmin / CurrentUser role-enum approach is replaced entirely by
-the permission engine in app.core.permissions.
-"""
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
@@ -29,13 +16,9 @@ from app.services.user_service import UserService
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-# ── db session ────────────────────────────────────────────────────────────────
-
 async def get_db_session(db: AsyncSession = Depends(get_db)) -> AsyncSession:
     return db
 
-
-# ── service factory dependencies ──────────────────────────────────────────────
 
 async def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:
     return UserService(
@@ -58,19 +41,10 @@ async def get_permission_service(db: AsyncSession = Depends(get_db)) -> Permissi
     )
 
 
-# ── authentication ────────────────────────────────────────────────────────────
-
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """
-    1. Extract Bearer token from Authorization header.
-    2. Decode and validate JWT — raises 401 on any failure.
-    3. Load User from DB WITH roles and their permissions + direct permissions.
-       This single DB call fully populates the user object so all downstream
-       permission checks (can(), has_role(), etc.) are pure in-memory operations.
-    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -117,10 +91,6 @@ async def get_current_user_optional(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
-    """
-    Same as get_current_user but returns None instead of raising 401.
-    Useful for routes that behave differently for authenticated vs anonymous users.
-    """
     if credentials is None:
         return None
     try:

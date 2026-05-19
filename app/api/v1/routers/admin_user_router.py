@@ -14,7 +14,6 @@ from app.services.user_service import UserService
 router = APIRouter(prefix="/users", tags=["Admin — Users"])
 
 
-# ── user CRUD ─────────────────────────────────────────────────────────────────
 
 @router.get(
     "",
@@ -59,7 +58,6 @@ async def create_user(
         full_name=body.full_name,
         password=body.password,
     )
-    # assign roles if provided in the request body
     if body.role_ids:
         user = await service.sync_roles(user.id, body.role_ids)
     user = await service.get_by_id_with_roles_and_permissions(user.id)
@@ -79,7 +77,6 @@ async def toggle_user_active(
     return await service.toggle_active(user_id)
 
 
-# ── role assignment ───────────────────────────────────────────────────────────
 
 @router.post(
     "/{user_id}/roles",
@@ -113,7 +110,6 @@ async def revoke_role_from_user(
     return UserDetailResponse.from_user(user, service.get_all_permissions(user))
 
 
-# ── direct permission assignment ──────────────────────────────────────────────
 
 @router.post(
     "/{user_id}/permissions",
