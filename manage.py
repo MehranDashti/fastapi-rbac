@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.commands.kernel import COMMANDS, SCHEDULE
+from app.seeders.kernel import SEEDERS
 
 
 def _find(name: str):
@@ -53,6 +54,32 @@ def cmd_schedule_run():
             asyncio.run(entry["command"]().run())
 
 
+def _find_seeder(name: str):
+    for cls in SEEDERS:
+        if cls.name == name:
+            return cls
+    return None
+
+
+def seed_list():
+    print(f"{'Name':<30} Description")
+    print("-" * 60)
+    for cls in SEEDERS:
+        print(f"{cls.name:<30} {cls.description}")
+
+
+def seed_run(name: str | None = None):
+    if name:
+        cls = _find_seeder(name)
+        if cls is None:
+            print(f"Seeder '{name}' not found. Run `python manage.py seed:list` to see available seeders.")
+            sys.exit(1)
+        asyncio.run(cls().execute())
+    else:
+        from seed import run_all
+        asyncio.run(run_all())
+
+
 def main():
     args = sys.argv[1:]
     if not args or args[0] == "list":
@@ -61,11 +88,20 @@ def main():
         cmd_schedule_run()
     elif args[0] == "run" and len(args) == 2:
         cmd_run(args[1])
+    elif args[0] == "seed:list":
+        seed_list()
+    elif args[0] == "seed:run" and len(args) == 1:
+        seed_run()
+    elif args[0] == "seed:run" and len(args) == 2:
+        seed_run(args[1])
     else:
         print("Usage:")
         print("  python manage.py list")
         print("  python manage.py run <command-name>")
         print("  python manage.py schedule:run")
+        print("  python manage.py seed:list")
+        print("  python manage.py seed:run")
+        print("  python manage.py seed:run <seeder-name>")
         sys.exit(1)
 
 
