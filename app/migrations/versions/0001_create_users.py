@@ -23,18 +23,12 @@ def upgrade() -> None:
         sa.Column("username", sa.String(length=100), nullable=False),
         sa.Column("full_name", sa.String(length=255), nullable=False),
         sa.Column("hashed_password", sa.String(length=255), nullable=False),
-        sa.Column(
-            "role",
-            sa.Enum("client", "admin", name="userrole"),
-            nullable=False,
-            server_default="client",
-        ),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="1"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        mysql_engine="InnoDB",      # explicit InnoDB for transactions + FK support
-        mysql_charset="utf8mb4",    # full Unicode including emoji
+        mysql_engine="InnoDB",
+        mysql_charset="utf8mb4",
         mysql_collate="utf8mb4_unicode_ci",
     )
     op.create_index("ix_users_id", "users", ["id"])

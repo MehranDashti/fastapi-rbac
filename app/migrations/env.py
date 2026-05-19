@@ -6,26 +6,25 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# this is the Alembic Config object
+from app.core.config import settings
+from app.db.session import Base
+
+# register every model with Base.metadata before autogenerate runs
+import app.models  # noqa: F401
+
 config = context.config
+
+# override sqlalchemy.url from .env so alembic.ini doesn't need hardcoded creds
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import all models so Alembic detects them
-from app.db.session import Base 
-import app.models.user 
-
 target_metadata = Base.metadata
 
 
-def get_url() -> str:
-    from app.core.config import settings
-    return settings.DATABASE_URL
-
-
 def run_migrations_offline() -> None:
-    url = get_url()
+    url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -37,24 +36,24 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        # render AS NULL instead of server_default where possible
+        render_as_batch=False,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 async def run_async_migrations() -> None:
-    configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = get_url()
-
     connectable = async_engine_from_config(
-        configuration,
+        config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.AsyncAdaptedQueuePool,
     )
-
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
-
     await connectable.dispose()
 
 

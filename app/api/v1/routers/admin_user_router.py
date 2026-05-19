@@ -1,74 +1,147 @@
-from typing import Optional
+from fastapi import APIRouter, Depends, status
 
-from fastapi import APIRouter, Depends, Query
-
-from app.core.dependencies import CurrentAdmin, DBSession
-from app.db.pagination import Page, PaginationParams
-from app.models.user import UserRole
+from app.core.dependencies import get_user_service
+from app.core.permissions import require_permission
 from app.schemas.user import (
-    AdminCreateUserRequest,
-    LoginResponse,
-    MessageResponse,
-    UserLoginRequest,
+    AdminUserCreateRequest,
+    AssignDirectPermissionRequest,
+    AssignRoleRequest,
+    UserDetailResponse,
     UserResponse,
 )
 from app.services.user_service import UserService
 
-router = APIRouter(prefix="/admin/users", tags=["Admin — Users"])
+router = APIRouter(prefix="/users", tags=["Admin — Users"])
 
 
-def get_service(db: DBSession) -> UserService:
-    return UserService(db)
+# ── user CRUD ─────────────────────────────────────────────────────────────────
 
-
-@router.post("/login", response_model=LoginResponse, tags=["Admin — Auth"])
-async def admin_login(
-    body: UserLoginRequest,
-    service: UserService = Depends(get_service),
-):
-    """
-    Admin login — same endpoint as client login but documented separately.
-    Role is validated on protected admin routes via CurrentAdmin dependency.
-    """
-    return await service.login(body.email, body.password)
-
-
-@router.get("", response_model=Page[UserResponse])
+@router.get(
+    "",
+    response_model=list[UserResponse],
+    summary="List all users",
+    dependencies=[Depends(require_permission("users.read"))],
+)
 async def list_users(
-    _: CurrentAdmin,
-    service: UserService = Depends(get_service),
-    params: PaginationParams = Depends(),
-    role: Optional[UserRole] = Query(default=None, description="Filter by role"),
-):
-    """Paginated list of all users. Optionally filter by role."""
-    return await service.admin_list_users(params, role=role)
+    service: UserService = Depends(get_user_service),
+) -> list[UserResponse]:
+    return await service.get_all()
 
 
-@router.get("/{user_id}", response_model=UserResponse)
-async def view_user(
+@router.get(
+    "/{user_id}",
+    response_model=UserDetailResponse,
+    summary="Get a single user with roles, permissions",
+    dependencies=[Depends(require_permission("users.read"))],
+)
+async def get_user(
     user_id: int,
-    _: CurrentAdmin,
-    service: UserService = Depends(get_service),
-):
-    """Get a single user by ID."""
-    return await service.admin_get_user(user_id)
+    service: UserService = Depends(get_user_service),
+) -> UserDetailResponse:
+    user = await service.get_by_id_with_roles_and_permissions(user_id)
+    return UserDetailResponse.from_user(user, service.get_all_permissions(user))
 
 
-@router.post("", response_model=UserResponse, status_code=201)
+@router.post(
+    "",
+    response_model=UserDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a user (optionally assign roles immediately)",
+    dependencies=[Depends(require_permission("users.create"))],
+)
 async def create_user(
-    body: AdminCreateUserRequest,
-    _: CurrentAdmin,
-    service: UserService = Depends(get_service),
-):
-    """Admin creates a new user (any role)."""
-    return await service.admin_create_user(body)
+    body: AdminUserCreateRequest,
+    service: UserService = Depends(get_user_service),
+) -> UserDetailResponse:
+    user = await service.register(
+        email=body.email,
+        username=body.username,
+        full_name=body.full_name,
+        password=body.password,
+    )
+    # assign roles if provided in the request body
+    if body.role_ids:
+        user = await service.sync_roles(user.id, body.role_ids)
+    user = await service.get_by_id_with_roles_and_permissions(user.id)
+    return UserDetailResponse.from_user(user, service.get_all_permissions(user))
 
 
-@router.patch("/{user_id}/toggle-active", response_model=UserResponse)
+@router.patch(
+    "/{user_id}/toggle-active",
+    response_model=UserResponse,
+    summary="Toggle user active/inactive status",
+    dependencies=[Depends(require_permission("users.update"))],
+)
 async def toggle_user_active(
     user_id: int,
-    _: CurrentAdmin,
-    service: UserService = Depends(get_service),
-):
-    """Activate or deactivate a user account."""
-    return await service.admin_toggle_active(user_id)
+    service: UserService = Depends(get_user_service),
+) -> UserResponse:
+    return await service.toggle_active(user_id)
+
+
+# ── role assignment ───────────────────────────────────────────────────────────
+
+@router.post(
+    "/{user_id}/roles",
+    response_model=UserDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Assign a role to a user",
+    dependencies=[Depends(require_permission("users.update"))],
+)
+async def assign_role_to_user(
+    user_id: int,
+    body: AssignRoleRequest,
+    service: UserService = Depends(get_user_service),
+) -> UserDetailResponse:
+    user = await service.assign_role(user_id, body.role_id)
+    return UserDetailResponse.from_user(user, service.get_all_permissions(user))
+
+
+@router.delete(
+    "/{user_id}/roles/{role_id}",
+    response_model=UserDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Revoke a role from a user",
+    dependencies=[Depends(require_permission("users.update"))],
+)
+async def revoke_role_from_user(
+    user_id: int,
+    role_id: int,
+    service: UserService = Depends(get_user_service),
+) -> UserDetailResponse:
+    user = await service.revoke_role(user_id, role_id)
+    return UserDetailResponse.from_user(user, service.get_all_permissions(user))
+
+
+# ── direct permission assignment ──────────────────────────────────────────────
+
+@router.post(
+    "/{user_id}/permissions",
+    response_model=UserDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Assign a direct permission to a user",
+    dependencies=[Depends(require_permission("users.update"))],
+)
+async def assign_direct_permission_to_user(
+    user_id: int,
+    body: AssignDirectPermissionRequest,
+    service: UserService = Depends(get_user_service),
+) -> UserDetailResponse:
+    user = await service.assign_direct_permission(user_id, body.permission_id)
+    return UserDetailResponse.from_user(user, service.get_all_permissions(user))
+
+
+@router.delete(
+    "/{user_id}/permissions/{permission_id}",
+    response_model=UserDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Revoke a direct permission from a user",
+    dependencies=[Depends(require_permission("users.update"))],
+)
+async def revoke_direct_permission_from_user(
+    user_id: int,
+    permission_id: int,
+    service: UserService = Depends(get_user_service),
+) -> UserDetailResponse:
+    user = await service.revoke_direct_permission(user_id, permission_id)
+    return UserDetailResponse.from_user(user, service.get_all_permissions(user))

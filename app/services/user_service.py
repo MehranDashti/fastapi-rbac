@@ -1,181 +1,245 @@
-from typing import Optional
-
 from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    hash_password,
-    verify_password,
-)
-from app.db.pagination import Page, PaginationParams, paginate
-from app.models.user import User, UserRole
+from app.core.security import get_password_hash, verify_password
+from app.models.user import User
+from app.repositories.permission_repository import PermissionRepository
+from app.repositories.role_repository import RoleRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.user import (
-    AdminCreateUserRequest,
-    LoginResponse,
-    TokenResponse,
-    UserResponse,
-    UserSignupRequest,
-    UserUpdateRequest,
-)
-
-
-def _make_tokens(user: User) -> TokenResponse:
-    return TokenResponse(
-        access_token=create_access_token(
-            subject=str(user.id), extra={"role": user.role}
-        ),
-        refresh_token=create_refresh_token(subject=str(user.id)),
-    )
 
 
 class UserService:
-    def __init__(self, db: AsyncSession) -> None:
-        self.db = db
-        self.repo = UserRepository(db)
+    def __init__(
+        self,
+        user_repo: UserRepository,
+        role_repo: RoleRepository,
+        permission_repo: PermissionRepository,
+    ) -> None:
+        self.user_repo = user_repo
+        self.role_repo = role_repo
+        self.permission_repo = permission_repo
 
-    # ── Auth ──────────────────────────────────────────────────────────────────
+    # ── auth ──────────────────────────────────────────────────────────────────
 
-    async def signup(self, data: UserSignupRequest) -> LoginResponse:
-        if await self.repo.email_exists(data.email):
+    async def get_by_id(self, user_id: int) -> User:
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with id {user_id} not found.",
+            )
+        return user
+
+    async def get_by_id_with_roles_and_permissions(self, user_id: int) -> User:
+        """Used by auth dependency — returns fully populated user."""
+        user = await self.user_repo.get_with_roles_and_permissions(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with id {user_id} not found.",
+            )
+        return user
+
+    async def get_by_email(self, email: str) -> User:
+        user = await self.user_repo.get_by_email(email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found.",
+            )
+        return user
+
+    async def register(
+        self,
+        email: str,
+        username: str,
+        full_name: str,
+        password: str,
+    ) -> User:
+        if await self.user_repo.email_exists(email):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Email already registered",
+                detail="A user with this email already exists.",
             )
-        if await self.repo.username_exists(data.username):
+        if await self.user_repo.username_exists(username):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Username already taken",
+                detail="A user with this username already exists.",
             )
-
         user = User(
-            email=data.email,
-            username=data.username,
-            full_name=data.full_name,
-            hashed_password=hash_password(data.password),
-            role=UserRole.CLIENT,
+            email=email,
+            username=username,
+            full_name=full_name,
+            hashed_password=get_password_hash(password),
         )
-        user = await self.repo.create(user)
+        return await self.user_repo.create(user)
 
-        return LoginResponse(
-            user=UserResponse.model_validate(user),
-            tokens=_make_tokens(user),
-        )
-
-    async def login(self, email: str, password: str) -> LoginResponse:
-        user = await self.repo.get_by_email(email)
-
+    async def authenticate(self, email: str, password: str) -> User:
+        user = await self.user_repo.get_by_email(email)
         if not user or not verify_password(password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
+                detail="Invalid email or password.",
             )
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account is deactivated",
+                detail="Account is inactive.",
             )
-
-        return LoginResponse(
-            user=UserResponse.model_validate(user),
-            tokens=_make_tokens(user),
-        )
-
-    async def refresh_tokens(self, refresh_token: str) -> TokenResponse:
-        payload = decode_token(refresh_token)
-
-        if not payload or payload.get("type") != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired refresh token",
-            )
-
-        user = await self.repo.get_by_id(int(payload["sub"]))
-        if not user or not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive",
-            )
-
-        return _make_tokens(user)
-
-    # ── Client profile ────────────────────────────────────────────────────────
-
-    async def get_profile(self, user: User) -> UserResponse:
-        return UserResponse.model_validate(user)
+        return user
 
     async def update_profile(
-        self, user: User, data: UserUpdateRequest
-    ) -> UserResponse:
-        if data.full_name is not None:
-            user.full_name = data.full_name
-        if data.username is not None:
-            if await self.repo.username_exists(data.username):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Username already taken",
-                )
-            user.username = data.username
-
-        await self.db.flush()
-        await self.db.refresh(user)
-        return UserResponse.model_validate(user)
-
-    # ── Admin ─────────────────────────────────────────────────────────────────
-
-    async def admin_list_users(
         self,
-        params: PaginationParams,
-        role: Optional[UserRole] = None,
-    ) -> Page[UserResponse]:
-        query = await self.repo.get_all_users_query(role=role)
-        items, total = await paginate(self.db, query, params)
-        responses = [UserResponse.model_validate(u) for u in items]
-        return Page.create(responses, total, params)
+        user: User,
+        full_name: str | None = None,
+        password: str | None = None,
+    ) -> User:
+        if full_name is not None:
+            user.full_name = full_name
+        if password is not None:
+            user.hashed_password = get_password_hash(password)
+        await self.user_repo.db.flush()
+        await self.user_repo.db.refresh(user)
+        return user
 
-    async def admin_get_user(self, user_id: int) -> UserResponse:
-        user = await self.repo.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
-        return UserResponse.model_validate(user)
-
-    async def admin_create_user(self, data: AdminCreateUserRequest) -> UserResponse:
-        if await self.repo.email_exists(data.email):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email already registered",
-            )
-        if await self.repo.username_exists(data.username):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Username already taken",
-            )
-
-        user = User(
-            email=data.email,
-            username=data.username,
-            full_name=data.full_name,
-            hashed_password=hash_password(data.password),
-            role=data.role,
-            is_active=data.is_active,
-        )
-        user = await self.repo.create(user)
-        return UserResponse.model_validate(user)
-
-    async def admin_toggle_active(self, user_id: int) -> UserResponse:
-        user = await self.repo.get_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+    async def toggle_active(self, user_id: int) -> User:
+        user = await self.get_by_id(user_id)
         user.is_active = not user.is_active
-        await self.db.flush()
-        await self.db.refresh(user)
-        return UserResponse.model_validate(user)
+        await self.user_repo.db.flush()
+        await self.user_repo.db.refresh(user)
+        return user
+
+    async def get_all(self) -> list[User]:
+        return await self.user_repo.get_all()
+
+    # ── role assignment ───────────────────────────────────────────────────────
+
+    async def assign_role(self, user_id: int, role_id: int) -> User:
+        user = await self.get_by_id_with_roles_and_permissions(user_id)
+        role = await self.role_repo.get_by_id(role_id)
+        if not role:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Role with id {role_id} not found.",
+            )
+        if role in user.roles:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Role '{role.name}' is already assigned to this user.",
+            )
+        await self.user_repo.assign_role(user, role)
+        return user
+
+    async def revoke_role(self, user_id: int, role_id: int) -> User:
+        user = await self.get_by_id_with_roles_and_permissions(user_id)
+        role = await self.role_repo.get_by_id(role_id)
+        if not role:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Role with id {role_id} not found.",
+            )
+        if role not in user.roles:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Role '{role.name}' is not assigned to this user.",
+            )
+        await self.user_repo.revoke_role(user, role)
+        return user
+
+    async def sync_roles(self, user_id: int, role_ids: list[int]) -> User:
+        """Replace user's roles entirely with the given role id list."""
+        user = await self.get_by_id_with_roles_and_permissions(user_id)
+        roles = []
+        for role_id in role_ids:
+            role = await self.role_repo.get_by_id(role_id)
+            if not role:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Role with id {role_id} not found.",
+                )
+            roles.append(role)
+        await self.user_repo.sync_roles(user, roles)
+        return user
+
+    # ── direct permission assignment ──────────────────────────────────────────
+
+    async def assign_direct_permission(self, user_id: int, permission_id: int) -> User:
+        user = await self.get_by_id_with_roles_and_permissions(user_id)
+        permission = await self.permission_repo.get_by_id(permission_id)
+        if not permission:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Permission with id {permission_id} not found.",
+            )
+        if permission in user.direct_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Permission '{permission.name}' is already directly assigned to this user.",
+            )
+        await self.user_repo.assign_direct_permission(user, permission)
+        return user
+
+    async def revoke_direct_permission(self, user_id: int, permission_id: int) -> User:
+        user = await self.get_by_id_with_roles_and_permissions(user_id)
+        permission = await self.permission_repo.get_by_id(permission_id)
+        if not permission:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Permission with id {permission_id} not found.",
+            )
+        if permission not in user.direct_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Permission '{permission.name}' is not directly assigned to this user.",
+            )
+        await self.user_repo.revoke_direct_permission(user, permission)
+        return user
+
+    async def sync_direct_permissions(self, user_id: int, permission_ids: list[int]) -> User:
+        """Replace user's direct permissions entirely with the given permission id list."""
+        user = await self.get_by_id_with_roles_and_permissions(user_id)
+        permissions = []
+        for permission_id in permission_ids:
+            permission = await self.permission_repo.get_by_id(permission_id)
+            if not permission:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Permission with id {permission_id} not found.",
+                )
+            permissions.append(permission)
+        await self.user_repo.sync_direct_permissions(user, permissions)
+        return user
+
+    # ── permission resolution ─────────────────────────────────────────────────
+
+    def get_all_permissions(self, user: User) -> set[str]:
+        """
+        Resolve every permission name the user holds — union of:
+          - all permissions from every assigned role
+          - all directly assigned permissions
+        This mirrors Spatie's getAllPermissions() behavior.
+        """
+        from_roles: set[str] = {
+            permission.name
+            for role in user.roles
+            for permission in role.permissions
+        }
+        direct: set[str] = {permission.name for permission in user.direct_permissions}
+        return from_roles | direct
+
+    def has_permission(self, user: User, permission: str) -> bool:
+        return permission in self.get_all_permissions(user)
+
+    def has_any_permission(self, user: User, *permissions: str) -> bool:
+        all_perms = self.get_all_permissions(user)
+        return any(p in all_perms for p in permissions)
+
+    def has_all_permissions(self, user: User, *permissions: str) -> bool:
+        all_perms = self.get_all_permissions(user)
+        return all(p in all_perms for p in permissions)
+
+    def has_role(self, user: User, role: str) -> bool:
+        return any(r.name == role for r in user.roles)
+
+    def has_any_role(self, user: User, *roles: str) -> bool:
+        user_roles = {r.name for r in user.roles}
+        return any(r in user_roles for r in roles)

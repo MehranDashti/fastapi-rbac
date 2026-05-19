@@ -1,31 +1,71 @@
-import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Enum, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
+# M2M: users ↔ roles
+user_roles = Table(
+    "user_roles",
+    Base.metadata,
+    Column(
+        "user_id",
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    ),
+    Column(
+        "role_id",
+        Integer,
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+    mysql_collate="utf8mb4_unicode_ci",
+)
 
-class UserRole(str, enum.Enum):
-    CLIENT = "client"
-    ADMIN = "admin"
+# M2M: users ↔ permissions  (direct — no role intermediary)
+user_permissions = Table(
+    "user_permissions",
+    Base.metadata,
+    Column(
+        "user_id",
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    ),
+    Column(
+        "permission_id",
+        Integer,
+        ForeignKey("permissions.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    ),
+    mysql_engine="InnoDB",
+    mysql_charset="utf8mb4",
+    mysql_collate="utf8mb4_unicode_ci",
+)
 
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = {
+        "mysql_engine": "InnoDB",
+        "mysql_charset": "utf8mb4",
+        "mysql_collate": "utf8mb4_unicode_ci",
+    }
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     username: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, values_callable=lambda x: [e.value for e in x]),
-        default=UserRole.CLIENT,
-        nullable=False,
-    )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -36,4 +76,20 @@ class User(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+
+    # M2M → roles  (user gets permissions via roles)
+    roles: Mapped[list["Role"]] = relationship(  # noqa: F821
+        "Role",
+        secondary="user_roles",
+        back_populates="users",
+        lazy="selectin",
+    )
+
+    # M2M → permissions  (direct grants, bypassing roles — like Spatie's direct permissions)
+    direct_permissions: Mapped[list["Permission"]] = relationship(  # noqa: F821
+        "Permission",
+        secondary="user_permissions",
+        back_populates="users",
+        lazy="selectin",
     )

@@ -1,75 +1,137 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.core.dependencies import CurrentUser, DBSession
+from app.core.dependencies import get_current_user, get_user_service
+from app.core.security import create_access_token, create_refresh_token, decode_token
+from app.models.user import User
 from app.schemas.user import (
-    LoginResponse,
-    MessageResponse,
     RefreshTokenRequest,
     TokenResponse,
+    UserDetailResponse,
     UserLoginRequest,
-    UserResponse,
     UserSignupRequest,
     UserUpdateRequest,
 )
 from app.services.user_service import UserService
 
-router = APIRouter(prefix="/auth", tags=["Client — Auth & Profile"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-def get_service(db: DBSession) -> UserService:
-    return UserService(db)
-
-
-@router.post("/signup", response_model=LoginResponse, status_code=201)
+@router.post(
+    "/signup",
+    response_model=UserDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new user",
+)
 async def signup(
     body: UserSignupRequest,
-    service: UserService = Depends(get_service),
-):
-    """Register a new client account."""
-    return await service.signup(body)
+    service: UserService = Depends(get_user_service),
+) -> UserDetailResponse:
+    user = await service.register(
+        email=body.email,
+        username=body.username,
+        full_name=body.full_name,
+        password=body.password,
+    )
+    # freshly registered user — no roles yet, empty permissions
+    return UserDetailResponse.from_user(user, set())
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="Login and receive access + refresh tokens",
+)
 async def login(
     body: UserLoginRequest,
-    service: UserService = Depends(get_service),
-):
-    """Login and receive access + refresh tokens."""
-    return await service.login(body.email, body.password)
+    service: UserService = Depends(get_user_service),
+) -> TokenResponse:
+    user = await service.authenticate(email=body.email, password=body.password)
+    return TokenResponse(
+        access_token=create_access_token(subject=user.id),
+        refresh_token=create_refresh_token(subject=user.id),
+    )
 
 
-@router.post("/logout", response_model=MessageResponse)
-async def logout(current_user: CurrentUser):
-    """
-    Logout endpoint.
-    Tokens are stateless JWTs — invalidation is handled client-side by
-    discarding the token. For server-side revocation add a token blacklist
-    (Redis) here.
-    """
-    return MessageResponse(message="Logged out successfully")
-
-
-@router.post("/refresh", response_model=TokenResponse)
-async def refresh_tokens(
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    summary="Issue a new access token using a valid refresh token",
+)
+async def refresh_token(
     body: RefreshTokenRequest,
-    service: UserService = Depends(get_service),
-):
-    """Get a new access token using a valid refresh token."""
-    return await service.refresh_tokens(body.refresh_token)
+    service: UserService = Depends(get_user_service),
+) -> TokenResponse:
+    from jose import JWTError
+
+    try:
+        payload = decode_token(body.refresh_token)
+        user_id: int | None = payload.get("sub")
+        token_type: str | None = payload.get("type")
+        if user_id is None or token_type != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token.",
+            )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate refresh token.",
+        )
+
+    user = await service.get_by_id(user_id)
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is inactive.",
+        )
+
+    return TokenResponse(
+        access_token=create_access_token(subject=user.id),
+        refresh_token=create_refresh_token(subject=user.id),
+    )
 
 
-@router.get("/profile", response_model=UserResponse)
-async def get_profile(current_user: CurrentUser):
-    """Get the authenticated user's profile."""
-    from app.schemas.user import UserResponse
-    return UserResponse.model_validate(current_user)
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Logout (client-side token discard; server-side blacklist is a future step)",
+)
+async def logout(
+    _: User = Depends(get_current_user),
+) -> None:
+    # JWT is stateless — logout is client-side token discard.
+    # TODO: add token to Redis blacklist for server-side invalidation.
+    return None
 
 
-@router.patch("/profile", response_model=UserResponse)
+@router.get(
+    "/profile",
+    response_model=UserDetailResponse,
+    summary="Get the current user's profile with all roles and permissions",
+)
+async def get_profile(
+    current_user: User = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+) -> UserDetailResponse:
+    return UserDetailResponse.from_user(
+        current_user,
+        service.get_all_permissions(current_user),
+    )
+
+
+@router.patch(
+    "/profile",
+    response_model=UserDetailResponse,
+    summary="Update the current user's profile",
+)
 async def update_profile(
     body: UserUpdateRequest,
-    current_user: CurrentUser,
-    service: UserService = Depends(get_service),
-):
-    """Update the authenticated user's profile."""
-    return await service.update_profile(current_user, body)
+    current_user: User = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+) -> UserDetailResponse:
+    user = await service.update_profile(
+        user=current_user,
+        full_name=body.full_name,
+        password=body.password,
+    )
+    return UserDetailResponse.from_user(user, service.get_all_permissions(user))
