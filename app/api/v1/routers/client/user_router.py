@@ -4,14 +4,14 @@ from app.core.dependencies import get_current_user, get_user_service
 from app.core.response import created, no_content, ok
 from app.core.security import create_access_token, create_refresh_token, decode_token
 from app.models.user import User
-from app.schemas.user import (
+from app.schemas.client.user import (
     RefreshTokenRequest,
     TokenResponse,
-    UserDetailResponse,
     UserLoginRequest,
     UserSignupRequest,
     UserUpdateRequest,
 )
+from app.schemas.shared.user import UserDetailResponse
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])

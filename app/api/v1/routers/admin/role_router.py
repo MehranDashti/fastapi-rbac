@@ -5,13 +5,8 @@ from app.core.permissions import require_permission
 from app.core.response import created, no_content, ok
 from app.db.pagination import Page, PaginationParams
 from app.filters.role_filter import RoleFilterParams
-from app.schemas.role import (
-    AssignPermissionRequest,
-    RoleCreate,
-    RoleDetailResponse,
-    RoleResponse,
-    RoleUpdate,
-)
+from app.schemas.admin.role import AssignPermissionRequest, RoleCreate, RoleUpdate
+from app.schemas.shared.role import RoleDetailResponse, RoleResponse
 from app.services.role_service import RoleService
 
 router = APIRouter(prefix="/roles", tags=["Admin — Roles"])

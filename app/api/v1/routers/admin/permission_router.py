@@ -5,7 +5,8 @@ from app.core.permissions import require_permission
 from app.core.response import created, no_content, ok
 from app.db.pagination import Page, PaginationParams
 from app.filters.permission_filter import PermissionFilterParams
-from app.schemas.permission import PermissionCreate, PermissionResponse, PermissionUpdate
+from app.schemas.admin.permission import PermissionCreate, PermissionUpdate
+from app.schemas.shared.permission import PermissionResponse
 from app.services.permission_service import PermissionService
 
 router = APIRouter(prefix="/permissions", tags=["Admin — Permissions"])

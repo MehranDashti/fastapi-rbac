@@ -5,13 +5,12 @@ from app.core.permissions import require_permission
 from app.core.response import created, ok
 from app.db.pagination import Page, PaginationParams
 from app.filters.user_filter import UserFilterParams
-from app.schemas.user import (
+from app.schemas.admin.user import (
     AdminUserCreateRequest,
     AssignDirectPermissionRequest,
     AssignRoleRequest,
-    UserDetailResponse,
-    UserResponse,
 )
+from app.schemas.shared.user import UserDetailResponse, UserResponse
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["Admin — Users"])

@@ -12,40 +12,17 @@ from app.schemas.admin.user import (
     AssignRoleRequest,
     AssignRolesRequest,
 )
-from app.schemas.client.user import (
-    RefreshTokenRequest,
-    TokenResponse,
-    UserLoginRequest,
-    UserSignupRequest,
-    UserUpdateRequest,
-)
-from app.schemas.shared.permission import PermissionResponse
-from app.schemas.shared.role import RoleDetailResponse, RoleResponse
-from app.schemas.shared.user import UserDetailResponse, UserResponse
 
 __all__ = [
-    # permission
     "PermissionCreate",
     "PermissionUpdate",
-    "PermissionResponse",
-    # role
     "RoleCreate",
     "RoleUpdate",
-    "RoleResponse",
-    "RoleDetailResponse",
     "AssignPermissionRequest",
     "AssignPermissionsRequest",
-    # user
-    "UserSignupRequest",
-    "UserLoginRequest",
-    "UserUpdateRequest",
     "AdminUserCreateRequest",
     "AssignRoleRequest",
     "AssignRolesRequest",
     "AssignDirectPermissionRequest",
     "AssignDirectPermissionsRequest",
-    "UserResponse",
-    "UserDetailResponse",
-    "TokenResponse",
-    "RefreshTokenRequest",
 ]
