@@ -12,7 +12,7 @@ from app.repositories.permission_repository import PermissionRepository
 from app.repositories.role_repository import RoleRepository
 from app.repositories.user_repository import UserRepository
 from app.services.user_service import UserService
-from app.tests.conftest import make_permission, make_role, make_user
+from app.tests.factories import make_permission, make_role, make_user
 
 
 def make_service(db: AsyncSession) -> UserService:

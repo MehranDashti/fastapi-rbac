@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.user_repository import UserRepository
-from app.tests.conftest import make_permission, make_role, make_user
+from app.tests.factories import make_permission, make_role, make_user
 
 
 async def test_get_by_email_found(db_session: AsyncSession):

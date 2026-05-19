@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.permission_repository import PermissionRepository
-from app.tests.conftest import make_permission
+from app.tests.factories import make_permission
 
 
 async def test_get_by_name_found(db_session: AsyncSession):

@@ -9,6 +9,7 @@ from app.db.session import Base, get_db
 from app.models.permission import Permission
 from app.models.role import Role
 from app.models.user import User
+from app.tests.factories import make_user
 from main import app
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -89,53 +90,6 @@ async def client() -> AsyncClient:
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
-
-
-async def make_permission(
-    db: AsyncSession,
-    name: str = "test.read",
-    display_name: str = "Test Read",
-    guard_name: str = "api",
-) -> Permission:
-    perm = Permission(name=name, display_name=display_name, guard_name=guard_name)
-    db.add(perm)
-    await db.flush()
-    await db.refresh(perm)
-    return perm
-
-
-async def make_role(
-    db: AsyncSession,
-    name: str = "testrole",
-    display_name: str = "Test Role",
-    guard_name: str = "api",
-) -> Role:
-    role = Role(name=name, display_name=display_name, guard_name=guard_name)
-    db.add(role)
-    await db.flush()
-    await db.refresh(role)
-    return role
-
-
-async def make_user(
-    db: AsyncSession,
-    email: str = "user@test.com",
-    username: str = "testuser",
-    full_name: str = "Test User",
-    password: str = "Password1",
-    is_active: bool = True,
-) -> User:
-    user = User(
-        email=email,
-        username=username,
-        full_name=full_name,
-        hashed_password=get_password_hash(password),
-        is_active=is_active,
-    )
-    db.add(user)
-    await db.flush()
-    await db.refresh(user)
-    return user
 
 
 @pytest_asyncio.fixture

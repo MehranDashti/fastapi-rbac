@@ -13,3 +13,4 @@ passlib[bcrypt]
 httpx
 pytest
 pytest-asyncio
+faker

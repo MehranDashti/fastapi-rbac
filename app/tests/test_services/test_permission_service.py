@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictError, NotFoundError
 from app.repositories.permission_repository import PermissionRepository
 from app.services.permission_service import PermissionService
-from app.tests.conftest import make_permission
+from app.tests.factories import make_permission
 
 
 def make_service(db: AsyncSession) -> PermissionService:

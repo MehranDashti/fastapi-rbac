@@ -1,48 +1,38 @@
 import pytest
 from httpx import AsyncClient
 
+from app.tests.factories import user_payload
+
 
 async def test_signup_success(client: AsyncClient):
-    resp = await client.post("/api/v1/auth/signup", json={
-        "email": "new@test.com",
-        "username": "newuser",
-        "full_name": "New User",
-        "password": "Password1",
-    })
+    payload = user_payload()
+    resp = await client.post("/api/v1/auth/signup", json=payload)
     assert resp.status_code == 201
     data = resp.json()["data"]
-    assert data["email"] == "new@test.com"
-    assert data["username"] == "newuser"
+    assert data["email"] == payload["email"]
+    assert data["username"] == payload["username"]
 
 
 async def test_signup_duplicate_email(client: AsyncClient):
-    payload = {"email": "dup@test.com", "username": "dup1", "full_name": "Dup", "password": "Password1"}
+    payload = user_payload()
     await client.post("/api/v1/auth/signup", json=payload)
-    payload["username"] = "dup2"
-    resp = await client.post("/api/v1/auth/signup", json=payload)
+    payload2 = user_payload(email=payload["email"])
+    resp = await client.post("/api/v1/auth/signup", json=payload2)
     assert resp.status_code == 409
 
 
 async def test_signup_weak_password(client: AsyncClient):
-    resp = await client.post("/api/v1/auth/signup", json={
-        "email": "weak@test.com",
-        "username": "weakuser",
-        "full_name": "Weak",
-        "password": "abc",
-    })
+    payload = user_payload(password="abc")
+    resp = await client.post("/api/v1/auth/signup", json=payload)
     assert resp.status_code == 422
 
 
 async def test_login_success(client: AsyncClient):
-    await client.post("/api/v1/auth/signup", json={
-        "email": "login@test.com",
-        "username": "loginuser",
-        "full_name": "Login User",
-        "password": "Password1",
-    })
+    payload = user_payload()
+    await client.post("/api/v1/auth/signup", json=payload)
     resp = await client.post("/api/v1/auth/login", json={
-        "email": "login@test.com",
-        "password": "Password1",
+        "email": payload["email"],
+        "password": payload["password"],
     })
     assert resp.status_code == 200
     data = resp.json()["data"]
@@ -51,29 +41,21 @@ async def test_login_success(client: AsyncClient):
 
 
 async def test_login_wrong_password(client: AsyncClient):
-    await client.post("/api/v1/auth/signup", json={
-        "email": "badpw@test.com",
-        "username": "badpwuser",
-        "full_name": "Bad",
-        "password": "Password1",
-    })
+    payload = user_payload()
+    await client.post("/api/v1/auth/signup", json=payload)
     resp = await client.post("/api/v1/auth/login", json={
-        "email": "badpw@test.com",
+        "email": payload["email"],
         "password": "WrongPass1",
     })
     assert resp.status_code == 401
 
 
 async def test_refresh_success(client: AsyncClient):
-    await client.post("/api/v1/auth/signup", json={
-        "email": "refresh@test.com",
-        "username": "refreshuser",
-        "full_name": "Refresh",
-        "password": "Password1",
-    })
+    payload = user_payload()
+    await client.post("/api/v1/auth/signup", json=payload)
     login = await client.post("/api/v1/auth/login", json={
-        "email": "refresh@test.com",
-        "password": "Password1",
+        "email": payload["email"],
+        "password": payload["password"],
     })
     refresh_token = login.json()["data"]["refresh_token"]
     resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
@@ -82,15 +64,11 @@ async def test_refresh_success(client: AsyncClient):
 
 
 async def test_refresh_with_access_token(client: AsyncClient):
-    await client.post("/api/v1/auth/signup", json={
-        "email": "badrefresh@test.com",
-        "username": "badrefreshuser",
-        "full_name": "Bad",
-        "password": "Password1",
-    })
+    payload = user_payload()
+    await client.post("/api/v1/auth/signup", json=payload)
     login = await client.post("/api/v1/auth/login", json={
-        "email": "badrefresh@test.com",
-        "password": "Password1",
+        "email": payload["email"],
+        "password": payload["password"],
     })
     access_token = login.json()["data"]["access_token"]
     resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": access_token})

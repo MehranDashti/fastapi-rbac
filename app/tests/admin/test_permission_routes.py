@@ -1,5 +1,7 @@
 from httpx import AsyncClient
 
+from app.tests.factories import permission_payload
+
 
 async def test_list_permissions(client: AsyncClient, admin_headers: dict[str, str]):
     resp = await client.get("/api/v1/admin/permissions", headers=admin_headers)
@@ -19,34 +21,23 @@ async def test_list_permissions_unauthenticated(client: AsyncClient):
 
 
 async def test_create_permission_success(client: AsyncClient, admin_headers: dict[str, str]):
-    resp = await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "posts.read", "display_name": "Read Posts", "guard_name": "api"},
-    )
+    pp = permission_payload()
+    resp = await client.post("/api/v1/admin/permissions", headers=admin_headers, json=pp)
     assert resp.status_code == 201
-    assert resp.json()["data"]["name"] == "posts.read"
+    assert resp.json()["data"]["name"] == pp["name"]
 
 
 async def test_create_permission_duplicate(client: AsyncClient, admin_headers: dict[str, str]):
-    await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "posts.read", "display_name": "Read Posts", "guard_name": "api"},
-    )
-    resp = await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "posts.read", "display_name": "Read Posts Again", "guard_name": "api"},
-    )
+    pp = permission_payload()
+    await client.post("/api/v1/admin/permissions", headers=admin_headers, json=pp)
+    pp2 = permission_payload(name=pp["name"])
+    resp = await client.post("/api/v1/admin/permissions", headers=admin_headers, json=pp2)
     assert resp.status_code == 409
 
 
 async def test_get_permission_found(client: AsyncClient, admin_headers: dict[str, str]):
     create = await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "posts.write", "display_name": "Write Posts", "guard_name": "api"},
+        "/api/v1/admin/permissions", headers=admin_headers, json=permission_payload()
     )
     pid = create.json()["data"]["id"]
     resp = await client.get(f"/api/v1/admin/permissions/{pid}", headers=admin_headers)
@@ -61,25 +52,21 @@ async def test_get_permission_not_found(client: AsyncClient, admin_headers: dict
 
 async def test_update_permission(client: AsyncClient, admin_headers: dict[str, str]):
     create = await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "posts.delete", "display_name": "Delete Posts", "guard_name": "api"},
+        "/api/v1/admin/permissions", headers=admin_headers, json=permission_payload()
     )
     pid = create.json()["data"]["id"]
     resp = await client.patch(
         f"/api/v1/admin/permissions/{pid}",
         headers=admin_headers,
-        json={"display_name": "Delete Posts Updated"},
+        json={"display_name": "Updated Display Name"},
     )
     assert resp.status_code == 200
-    assert resp.json()["data"]["display_name"] == "Delete Posts Updated"
+    assert resp.json()["data"]["display_name"] == "Updated Display Name"
 
 
 async def test_delete_permission(client: AsyncClient, admin_headers: dict[str, str]):
     create = await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "posts.archive", "display_name": "Archive Posts", "guard_name": "api"},
+        "/api/v1/admin/permissions", headers=admin_headers, json=permission_payload()
     )
     pid = create.json()["data"]["id"]
     resp = await client.delete(f"/api/v1/admin/permissions/{pid}", headers=admin_headers)
@@ -89,29 +76,21 @@ async def test_delete_permission(client: AsyncClient, admin_headers: dict[str, s
 
 
 async def test_list_permissions_filter_by_name(client: AsyncClient, admin_headers: dict[str, str]):
-    await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "articles.read", "display_name": "Read Articles", "guard_name": "api"},
-    )
-    await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "articles.write", "display_name": "Write Articles", "guard_name": "api"},
-    )
-    resp = await client.get("/api/v1/admin/permissions?name=write", headers=admin_headers)
+    pp1 = permission_payload(name="zfilter_articles.read")
+    pp2 = permission_payload(name="zfilter_articles.write")
+    await client.post("/api/v1/admin/permissions", headers=admin_headers, json=pp1)
+    await client.post("/api/v1/admin/permissions", headers=admin_headers, json=pp2)
+    resp = await client.get("/api/v1/admin/permissions?name=zfilter_articles.write", headers=admin_headers)
     assert resp.status_code == 200
     items = resp.json()["data"]["items"]
     assert len(items) == 1
-    assert items[0]["name"] == "articles.write"
+    assert items[0]["name"] == "zfilter_articles.write"
 
 
 async def test_list_permissions_pagination(client: AsyncClient, admin_headers: dict[str, str]):
-    for i in range(3):
+    for _ in range(3):
         await client.post(
-            "/api/v1/admin/permissions",
-            headers=admin_headers,
-            json={"name": f"paged.perm{i}", "display_name": f"Paged {i}", "guard_name": "api"},
+            "/api/v1/admin/permissions", headers=admin_headers, json=permission_payload()
         )
     resp = await client.get("/api/v1/admin/permissions?page=1&page_size=2", headers=admin_headers)
     assert resp.status_code == 200
@@ -125,14 +104,10 @@ async def test_list_permissions_pagination(client: AsyncClient, admin_headers: d
 
 async def test_list_permissions_sort_by_name(client: AsyncClient, admin_headers: dict[str, str]):
     await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "zzz.last", "display_name": "Last", "guard_name": "api"},
+        "/api/v1/admin/permissions", headers=admin_headers, json=permission_payload()
     )
     await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "aaa.first", "display_name": "First", "guard_name": "api"},
+        "/api/v1/admin/permissions", headers=admin_headers, json=permission_payload()
     )
     resp = await client.get("/api/v1/admin/permissions?sort_by=name&sort_order=asc", headers=admin_headers)
     assert resp.status_code == 200

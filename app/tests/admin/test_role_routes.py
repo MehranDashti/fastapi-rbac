@@ -1,5 +1,7 @@
 from httpx import AsyncClient
 
+from app.tests.factories import permission_payload, role_payload
+
 
 async def test_list_roles(client: AsyncClient, admin_headers: dict[str, str]):
     resp = await client.get("/api/v1/admin/roles", headers=admin_headers)
@@ -14,34 +16,23 @@ async def test_list_roles_no_permission(client: AsyncClient, user_headers: dict[
 
 
 async def test_create_role_success(client: AsyncClient, admin_headers: dict[str, str]):
-    resp = await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "editor", "display_name": "Editor", "guard_name": "api"},
-    )
+    rp = role_payload()
+    resp = await client.post("/api/v1/admin/roles", headers=admin_headers, json=rp)
     assert resp.status_code == 201
-    assert resp.json()["data"]["name"] == "editor"
+    assert resp.json()["data"]["name"] == rp["name"]
 
 
 async def test_create_role_duplicate(client: AsyncClient, admin_headers: dict[str, str]):
-    await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "editor", "display_name": "Editor", "guard_name": "api"},
-    )
-    resp = await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "editor", "display_name": "Editor Again", "guard_name": "api"},
-    )
+    rp = role_payload()
+    await client.post("/api/v1/admin/roles", headers=admin_headers, json=rp)
+    rp2 = role_payload(name=rp["name"])
+    resp = await client.post("/api/v1/admin/roles", headers=admin_headers, json=rp2)
     assert resp.status_code == 409
 
 
 async def test_get_role_found(client: AsyncClient, admin_headers: dict[str, str]):
     create = await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "viewer", "display_name": "Viewer", "guard_name": "api"},
+        "/api/v1/admin/roles", headers=admin_headers, json=role_payload()
     )
     rid = create.json()["data"]["id"]
     resp = await client.get(f"/api/v1/admin/roles/{rid}", headers=admin_headers)
@@ -57,25 +48,21 @@ async def test_get_role_not_found(client: AsyncClient, admin_headers: dict[str, 
 
 async def test_update_role(client: AsyncClient, admin_headers: dict[str, str]):
     create = await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "updater", "display_name": "Updater", "guard_name": "api"},
+        "/api/v1/admin/roles", headers=admin_headers, json=role_payload()
     )
     rid = create.json()["data"]["id"]
     resp = await client.patch(
         f"/api/v1/admin/roles/{rid}",
         headers=admin_headers,
-        json={"display_name": "Updater Updated"},
+        json={"display_name": "Updated Display Name"},
     )
     assert resp.status_code == 200
-    assert resp.json()["data"]["display_name"] == "Updater Updated"
+    assert resp.json()["data"]["display_name"] == "Updated Display Name"
 
 
 async def test_delete_role(client: AsyncClient, admin_headers: dict[str, str]):
     create = await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "todelete", "display_name": "To Delete", "guard_name": "api"},
+        "/api/v1/admin/roles", headers=admin_headers, json=role_payload()
     )
     rid = create.json()["data"]["id"]
     resp = await client.delete(f"/api/v1/admin/roles/{rid}", headers=admin_headers)
@@ -86,16 +73,11 @@ async def test_delete_role(client: AsyncClient, admin_headers: dict[str, str]):
 
 async def test_assign_permission_to_role(client: AsyncClient, admin_headers: dict[str, str]):
     role_resp = await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "assigntest", "display_name": "Assign Test", "guard_name": "api"},
+        "/api/v1/admin/roles", headers=admin_headers, json=role_payload()
     )
     rid = role_resp.json()["data"]["id"]
-    perm_resp = await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "custom.read", "display_name": "Custom Read", "guard_name": "api"},
-    )
+    pp = permission_payload()
+    perm_resp = await client.post("/api/v1/admin/permissions", headers=admin_headers, json=pp)
     pid = perm_resp.json()["data"]["id"]
     resp = await client.post(
         f"/api/v1/admin/roles/{rid}/permissions",
@@ -104,21 +86,16 @@ async def test_assign_permission_to_role(client: AsyncClient, admin_headers: dic
     )
     assert resp.status_code == 200
     perm_names = [p["name"] for p in resp.json()["data"]["permissions"]]
-    assert "custom.read" in perm_names
+    assert pp["name"] in perm_names
 
 
 async def test_revoke_permission_from_role(client: AsyncClient, admin_headers: dict[str, str]):
     role_resp = await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "revoketest", "display_name": "Revoke Test", "guard_name": "api"},
+        "/api/v1/admin/roles", headers=admin_headers, json=role_payload()
     )
     rid = role_resp.json()["data"]["id"]
-    perm_resp = await client.post(
-        "/api/v1/admin/permissions",
-        headers=admin_headers,
-        json={"name": "custom.write", "display_name": "Custom Write", "guard_name": "api"},
-    )
+    pp = permission_payload()
+    perm_resp = await client.post("/api/v1/admin/permissions", headers=admin_headers, json=pp)
     pid = perm_resp.json()["data"]["id"]
     await client.post(
         f"/api/v1/admin/roles/{rid}/permissions",
@@ -131,34 +108,24 @@ async def test_revoke_permission_from_role(client: AsyncClient, admin_headers: d
     )
     assert resp.status_code == 200
     perm_names = [p["name"] for p in resp.json()["data"]["permissions"]]
-    assert "custom.write" not in perm_names
+    assert pp["name"] not in perm_names
 
 
 async def test_list_roles_filter_by_name(client: AsyncClient, admin_headers: dict[str, str]):
-    await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "manager", "display_name": "Manager", "guard_name": "api"},
-    )
-    await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "viewer", "display_name": "Viewer", "guard_name": "api"},
-    )
-    resp = await client.get("/api/v1/admin/roles?name=man", headers=admin_headers)
+    rp1 = role_payload(name="zfilter_manager_role")
+    rp2 = role_payload(name="zfilter_viewer_role")
+    await client.post("/api/v1/admin/roles", headers=admin_headers, json=rp1)
+    await client.post("/api/v1/admin/roles", headers=admin_headers, json=rp2)
+    resp = await client.get("/api/v1/admin/roles?name=zfilter_manager", headers=admin_headers)
     assert resp.status_code == 200
     items = resp.json()["data"]["items"]
     assert len(items) == 1
-    assert items[0]["name"] == "manager"
+    assert items[0]["name"] == "zfilter_manager_role"
 
 
 async def test_list_roles_pagination(client: AsyncClient, admin_headers: dict[str, str]):
-    for i in range(3):
-        await client.post(
-            "/api/v1/admin/roles",
-            headers=admin_headers,
-            json={"name": f"paged_role_{i}", "display_name": f"Paged {i}", "guard_name": "api"},
-        )
+    for _ in range(3):
+        await client.post("/api/v1/admin/roles", headers=admin_headers, json=role_payload())
     resp = await client.get("/api/v1/admin/roles?page=1&page_size=2", headers=admin_headers)
     assert resp.status_code == 200
     data = resp.json()["data"]
@@ -169,16 +136,8 @@ async def test_list_roles_pagination(client: AsyncClient, admin_headers: dict[st
 
 
 async def test_list_roles_sort_by_name(client: AsyncClient, admin_headers: dict[str, str]):
-    await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "zzz_role", "display_name": "ZZZ", "guard_name": "api"},
-    )
-    await client.post(
-        "/api/v1/admin/roles",
-        headers=admin_headers,
-        json={"name": "aaa_role", "display_name": "AAA", "guard_name": "api"},
-    )
+    await client.post("/api/v1/admin/roles", headers=admin_headers, json=role_payload())
+    await client.post("/api/v1/admin/roles", headers=admin_headers, json=role_payload())
     resp = await client.get("/api/v1/admin/roles?sort_by=name&sort_order=asc", headers=admin_headers)
     assert resp.status_code == 200
     names = [r["name"] for r in resp.json()["data"]["items"]]

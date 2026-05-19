@@ -5,7 +5,7 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.repositories.permission_repository import PermissionRepository
 from app.repositories.role_repository import RoleRepository
 from app.services.role_service import RoleService
-from app.tests.conftest import make_permission, make_role
+from app.tests.factories import make_permission, make_role
 
 
 def make_service(db: AsyncSession) -> RoleService:
