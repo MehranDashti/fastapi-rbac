@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends
 from app.core.dependencies import get_role_service
 from app.core.permissions import require_permission
 from app.core.response import created, no_content, ok
+from app.db.pagination import Page, PaginationParams
+from app.filters.role_filter import RoleFilterParams
 from app.schemas.role import (
     AssignPermissionRequest,
     RoleCreate,
@@ -17,14 +19,22 @@ router = APIRouter(prefix="/roles", tags=["Admin — Roles"])
 
 @router.get(
     "",
-    summary="List all roles",
+    summary="List roles with filtering, sorting, and pagination",
     dependencies=[Depends(require_permission("roles.read"))],
 )
 async def list_roles(
+    filters: RoleFilterParams = Depends(),
+    pagination: PaginationParams = Depends(),
     service: RoleService = Depends(get_role_service),
 ):
-    roles = await service.get_all()
-    return ok([RoleResponse.model_validate(r) for r in roles])
+    items, total = await service.get_paginated(
+        filters=filters.to_dict(),
+        sort_by=filters.sort_by,
+        sort_order=filters.sort_order,
+        pagination=pagination,
+    )
+    page = Page.create([RoleResponse.model_validate(r) for r in items], total, pagination)
+    return ok(page)
 
 
 @router.get(

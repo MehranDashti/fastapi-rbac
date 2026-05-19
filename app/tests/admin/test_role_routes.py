@@ -4,7 +4,8 @@ from httpx import AsyncClient
 async def test_list_roles(client: AsyncClient, admin_headers: dict[str, str]):
     resp = await client.get("/api/v1/admin/roles", headers=admin_headers)
     assert resp.status_code == 200
-    assert isinstance(resp.json()["data"], list)
+    assert isinstance(resp.json()["data"]["items"], list)
+    assert "meta" in resp.json()["data"]
 
 
 async def test_list_roles_no_permission(client: AsyncClient, user_headers: dict[str, str]):
@@ -131,3 +132,54 @@ async def test_revoke_permission_from_role(client: AsyncClient, admin_headers: d
     assert resp.status_code == 200
     perm_names = [p["name"] for p in resp.json()["data"]["permissions"]]
     assert "custom.write" not in perm_names
+
+
+async def test_list_roles_filter_by_name(client: AsyncClient, admin_headers: dict[str, str]):
+    await client.post(
+        "/api/v1/admin/roles",
+        headers=admin_headers,
+        json={"name": "manager", "display_name": "Manager", "guard_name": "api"},
+    )
+    await client.post(
+        "/api/v1/admin/roles",
+        headers=admin_headers,
+        json={"name": "viewer", "display_name": "Viewer", "guard_name": "api"},
+    )
+    resp = await client.get("/api/v1/admin/roles?name=man", headers=admin_headers)
+    assert resp.status_code == 200
+    items = resp.json()["data"]["items"]
+    assert len(items) == 1
+    assert items[0]["name"] == "manager"
+
+
+async def test_list_roles_pagination(client: AsyncClient, admin_headers: dict[str, str]):
+    for i in range(3):
+        await client.post(
+            "/api/v1/admin/roles",
+            headers=admin_headers,
+            json={"name": f"paged_role_{i}", "display_name": f"Paged {i}", "guard_name": "api"},
+        )
+    resp = await client.get("/api/v1/admin/roles?page=1&page_size=2", headers=admin_headers)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert len(data["items"]) == 2
+    # admin_headers fixture seeds 1 superadmin role; 3 more created here → 4 total
+    assert data["meta"]["total"] == 4
+    assert data["meta"]["has_next"] is True
+
+
+async def test_list_roles_sort_by_name(client: AsyncClient, admin_headers: dict[str, str]):
+    await client.post(
+        "/api/v1/admin/roles",
+        headers=admin_headers,
+        json={"name": "zzz_role", "display_name": "ZZZ", "guard_name": "api"},
+    )
+    await client.post(
+        "/api/v1/admin/roles",
+        headers=admin_headers,
+        json={"name": "aaa_role", "display_name": "AAA", "guard_name": "api"},
+    )
+    resp = await client.get("/api/v1/admin/roles?sort_by=name&sort_order=asc", headers=admin_headers)
+    assert resp.status_code == 200
+    names = [r["name"] for r in resp.json()["data"]["items"]]
+    assert names == sorted(names)

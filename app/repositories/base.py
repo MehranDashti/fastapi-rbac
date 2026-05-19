@@ -1,9 +1,12 @@
-from typing import Generic, Type, TypeVar
+from typing import TYPE_CHECKING, Generic, Type, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import Base
+
+if TYPE_CHECKING:
+    from app.db.pagination import PaginationParams
 
 T = TypeVar("T", bound=Base)
 
@@ -30,3 +33,9 @@ class BaseRepository(Generic[T]):
     async def delete(self, instance: T) -> None:
         await self.db.delete(instance)
         await self.db.flush()
+
+    async def _paginate(
+        self, query: Select, pagination: "PaginationParams"
+    ) -> tuple[list[T], int]:
+        from app.db.pagination import paginate
+        return await paginate(self.db, query, pagination)

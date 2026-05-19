@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING, Any
+
 from fastapi import HTTPException, status
 
 from app.models.permission import Permission
 from app.repositories.permission_repository import PermissionRepository
 from app.services.base import BaseService
+
+if TYPE_CHECKING:
+    from app.db.pagination import PaginationParams
 
 
 class PermissionService(BaseService[Permission]):
@@ -12,6 +17,15 @@ class PermissionService(BaseService[Permission]):
 
     async def get_all(self, guard_name: str = "api") -> list[Permission]:  # type: ignore[override]
         return await self.repo.get_all_by_guard(guard_name)
+
+    async def get_paginated(
+        self,
+        filters: dict[str, Any],
+        sort_by: str | None,
+        sort_order: str,
+        pagination: "PaginationParams",
+    ) -> tuple[list[Permission], int]:
+        return await self.repo.get_filtered_paginated(filters, sort_by, sort_order, pagination)
 
     async def get_by_name(self, name: str, guard_name: str = "api") -> Permission:
         permission = await self.repo.get_by_name(name, guard_name)

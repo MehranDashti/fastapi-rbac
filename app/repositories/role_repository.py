@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -5,6 +7,9 @@ from sqlalchemy.orm import selectinload
 from app.models.permission import Permission
 from app.models.role import Role
 from app.repositories.base import BaseRepository
+
+if TYPE_CHECKING:
+    from app.db.pagination import PaginationParams
 
 
 class RoleRepository(BaseRepository[Role]):
@@ -46,3 +51,16 @@ class RoleRepository(BaseRepository[Role]):
         if permission in role.permissions:
             role.permissions.remove(permission)
             await self.db.flush()
+
+    async def get_filtered_paginated(
+        self,
+        filters: dict[str, Any],
+        sort_by: str | None,
+        sort_order: str,
+        pagination: "PaginationParams",
+    ) -> tuple[list[Role], int]:
+        from app.filters.role_filter import RoleFilter
+        f = RoleFilter()
+        query = f.apply(select(Role), filters)
+        query = f.apply_sort(query, Role, sort_by, sort_order)
+        return await self._paginate(query, pagination)

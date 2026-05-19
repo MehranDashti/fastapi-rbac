@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING, Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.permission import Permission
 from app.repositories.base import BaseRepository
+
+if TYPE_CHECKING:
+    from app.db.pagination import PaginationParams
 
 
 class PermissionRepository(BaseRepository[Permission]):
@@ -32,3 +37,16 @@ class PermissionRepository(BaseRepository[Permission]):
             )
         )
         return result.scalars().first() is not None
+
+    async def get_filtered_paginated(
+        self,
+        filters: dict[str, Any],
+        sort_by: str | None,
+        sort_order: str,
+        pagination: "PaginationParams",
+    ) -> tuple[list[Permission], int]:
+        from app.filters.permission_filter import PermissionFilter
+        f = PermissionFilter()
+        query = f.apply(select(Permission), filters)
+        query = f.apply_sort(query, Permission, sort_by, sort_order)
+        return await self._paginate(query, pagination)

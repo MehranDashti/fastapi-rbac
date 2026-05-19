@@ -4,7 +4,8 @@ from httpx import AsyncClient
 async def test_list_users_with_permission(client: AsyncClient, admin_headers: dict[str, str]):
     resp = await client.get("/api/v1/admin/users", headers=admin_headers)
     assert resp.status_code == 200
-    assert isinstance(resp.json()["data"], list)
+    assert isinstance(resp.json()["data"]["items"], list)
+    assert "meta" in resp.json()["data"]
 
 
 async def test_list_users_no_permission(client: AsyncClient, user_headers: dict[str, str]):
@@ -242,3 +243,58 @@ async def test_revoke_direct_permission_success(client: AsyncClient, admin_heade
     assert resp.status_code == 200
     direct_perm_names = [p["name"] for p in resp.json()["data"]["direct_permissions"]]
     assert "custom.revoke" not in direct_perm_names
+
+
+async def test_list_users_filter_by_email(client: AsyncClient, admin_headers: dict[str, str]):
+    await client.post(
+        "/api/v1/admin/users",
+        headers=admin_headers,
+        json={"email": "alice@test.com", "username": "alice", "full_name": "Alice", "password": "Password1"},
+    )
+    await client.post(
+        "/api/v1/admin/users",
+        headers=admin_headers,
+        json={"email": "bob@test.com", "username": "bob", "full_name": "Bob", "password": "Password1"},
+    )
+    resp = await client.get("/api/v1/admin/users?email=alice", headers=admin_headers)
+    assert resp.status_code == 200
+    items = resp.json()["data"]["items"]
+    assert len(items) == 1
+    assert items[0]["email"] == "alice@test.com"
+
+
+async def test_list_users_filter_by_is_active(client: AsyncClient, admin_headers: dict[str, str]):
+    await client.post(
+        "/api/v1/admin/users",
+        headers=admin_headers,
+        json={"email": "active@test.com", "username": "activeuser", "full_name": "Active", "password": "Password1"},
+    )
+    create = await client.post(
+        "/api/v1/admin/users",
+        headers=admin_headers,
+        json={"email": "inactive@test.com", "username": "inactiveuser", "full_name": "Inactive", "password": "Password1"},
+    )
+    uid = create.json()["data"]["id"]
+    await client.patch(f"/api/v1/admin/users/{uid}/toggle-active", headers=admin_headers)
+
+    resp = await client.get("/api/v1/admin/users?is_active=false", headers=admin_headers)
+    assert resp.status_code == 200
+    items = resp.json()["data"]["items"]
+    assert all(not u["is_active"] for u in items)
+    assert any(u["email"] == "inactive@test.com" for u in items)
+
+
+async def test_list_users_pagination(client: AsyncClient, admin_headers: dict[str, str]):
+    for i in range(3):
+        await client.post(
+            "/api/v1/admin/users",
+            headers=admin_headers,
+            json={"email": f"paged{i}@test.com", "username": f"pageduser{i}", "full_name": f"Paged {i}", "password": "Password1"},
+        )
+    resp = await client.get("/api/v1/admin/users?page=1&page_size=2", headers=admin_headers)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert len(data["items"]) == 2
+    assert data["meta"]["total"] == 4  # 3 created + 1 admin
+    assert data["meta"]["has_next"] is True
+    assert data["meta"]["page_size"] == 2

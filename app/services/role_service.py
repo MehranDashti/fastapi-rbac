@@ -1,9 +1,14 @@
+from typing import TYPE_CHECKING, Any
+
 from fastapi import HTTPException, status
 
 from app.models.role import Role
 from app.repositories.permission_repository import PermissionRepository
 from app.repositories.role_repository import RoleRepository
 from app.services.base import BaseService
+
+if TYPE_CHECKING:
+    from app.db.pagination import PaginationParams
 
 
 class RoleService(BaseService[Role]):
@@ -29,6 +34,15 @@ class RoleService(BaseService[Role]):
                 detail=f"Role '{name}' not found.",
             )
         return role
+
+    async def get_paginated(
+        self,
+        filters: dict[str, Any],
+        sort_by: str | None,
+        sort_order: str,
+        pagination: "PaginationParams",
+    ) -> tuple[list[Role], int]:
+        return await self.repo.get_filtered_paginated(filters, sort_by, sort_order, pagination)
 
     async def create(
         self,

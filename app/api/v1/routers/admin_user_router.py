@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends
 from app.core.dependencies import get_user_service
 from app.core.permissions import require_permission
 from app.core.response import created, ok
+from app.db.pagination import Page, PaginationParams
+from app.filters.user_filter import UserFilterParams
 from app.schemas.user import (
     AdminUserCreateRequest,
     AssignDirectPermissionRequest,
@@ -17,14 +19,22 @@ router = APIRouter(prefix="/users", tags=["Admin — Users"])
 
 @router.get(
     "",
-    summary="List all users",
+    summary="List users with filtering, sorting, and pagination",
     dependencies=[Depends(require_permission("users.read"))],
 )
 async def list_users(
+    filters: UserFilterParams = Depends(),
+    pagination: PaginationParams = Depends(),
     service: UserService = Depends(get_user_service),
 ):
-    users = await service.get_all()
-    return ok([UserResponse.model_validate(u) for u in users])
+    items, total = await service.get_paginated(
+        filters=filters.to_dict(),
+        sort_by=filters.sort_by,
+        sort_order=filters.sort_order,
+        pagination=pagination,
+    )
+    page = Page.create([UserResponse.model_validate(u) for u in items], total, pagination)
+    return ok(page)
 
 
 @router.get(

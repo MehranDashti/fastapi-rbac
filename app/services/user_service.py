@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Any
+
 from fastapi import HTTPException, status
 
 from app.core.security import get_password_hash, verify_password
@@ -6,6 +8,9 @@ from app.repositories.permission_repository import PermissionRepository
 from app.repositories.role_repository import RoleRepository
 from app.repositories.user_repository import UserRepository
 from app.services.base import BaseService
+
+if TYPE_CHECKING:
+    from app.db.pagination import PaginationParams
 
 
 class UserService(BaseService[User]):
@@ -185,6 +190,15 @@ class UserService(BaseService[User]):
             permissions.append(permission)
         await self.repo.sync_direct_permissions(user, permissions)
         return user
+
+    async def get_paginated(
+        self,
+        filters: dict[str, Any],
+        sort_by: str | None,
+        sort_order: str,
+        pagination: "PaginationParams",
+    ) -> tuple[list[User], int]:
+        return await self.repo.get_filtered_paginated(filters, sort_by, sort_order, pagination)
 
     def get_all_permissions(self, user: User) -> set[str]:
         from_roles: set[str] = {

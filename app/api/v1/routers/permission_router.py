@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends
 from app.core.dependencies import get_permission_service
 from app.core.permissions import require_permission
 from app.core.response import created, no_content, ok
+from app.db.pagination import Page, PaginationParams
+from app.filters.permission_filter import PermissionFilterParams
 from app.schemas.permission import PermissionCreate, PermissionResponse, PermissionUpdate
 from app.services.permission_service import PermissionService
 
@@ -11,15 +13,22 @@ router = APIRouter(prefix="/permissions", tags=["Admin — Permissions"])
 
 @router.get(
     "",
-    summary="List all permissions",
+    summary="List permissions with filtering, sorting, and pagination",
     dependencies=[Depends(require_permission("permissions.read"))],
 )
 async def list_permissions(
-    guard_name: str = "api",
+    filters: PermissionFilterParams = Depends(),
+    pagination: PaginationParams = Depends(),
     service: PermissionService = Depends(get_permission_service),
 ):
-    perms = await service.get_all(guard_name)
-    return ok([PermissionResponse.model_validate(p) for p in perms])
+    items, total = await service.get_paginated(
+        filters=filters.to_dict(),
+        sort_by=filters.sort_by,
+        sort_order=filters.sort_order,
+        pagination=pagination,
+    )
+    page = Page.create([PermissionResponse.model_validate(p) for p in items], total, pagination)
+    return ok(page)
 
 
 @router.get(
