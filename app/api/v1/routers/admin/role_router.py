@@ -56,7 +56,7 @@ async def create_role(
 ):
     role = await service.create(
         name=body.name,
-        display_name=body.display_name,
+        description=body.description,
         guard_name=body.guard_name,
     )
     return created(RoleDetailResponse.model_validate(role))
@@ -72,7 +72,7 @@ async def update_role(
     body: RoleUpdate,
     service: RoleService = Depends(get_role_service),
 ):
-    role = await service.update(role_id, display_name=body.display_name)
+    role = await service.update(role_id, description=body.description)
     return ok(RoleDetailResponse.model_validate(role))
 
 

@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.models.role import Role
+from fastapi_role_permission import Role
 from app.repositories.permission_repository import PermissionRepository
 from app.repositories.role_repository import RoleRepository
 from app.services.base import BaseService
@@ -40,21 +40,21 @@ class RoleService(BaseService[Role]):
     async def create(
         self,
         name: str,
-        display_name: str,
+        description: str | None = None,
         guard_name: str = "api",
     ) -> Role:
         if await self.repo.exists(name, guard_name):
             raise ConflictError(f"Role '{name}' already exists for guard '{guard_name}'.")
         role = Role(
             name=name,
-            display_name=display_name,
+            description=description,
             guard_name=guard_name,
         )
         return await self.repo.create(role)
 
-    async def update(self, role_id: int, display_name: str) -> Role:
+    async def update(self, role_id: int, description: str | None) -> Role:
         role = await self.get_by_id(role_id)
-        role.display_name = display_name
+        role.description = description
         return await self._flush_refresh(role)
 
     async def assign_permission(self, role_id: int, permission_id: int) -> Role:

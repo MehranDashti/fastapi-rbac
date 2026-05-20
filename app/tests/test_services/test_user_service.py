@@ -219,9 +219,8 @@ async def test_get_all_permissions_via_role(db_session: AsyncSession):
     role.permissions.append(perm)
     await db_session.flush()
     user = await make_user(db_session)
-    user.roles.append(role)
-    await db_session.flush()
-    await db_session.refresh(user)
+    await user.assign_role(db_session, role)
+    user = await UserRepository(db_session).get_with_roles_and_permissions(user.id)
 
     all_perms = get_all_permissions(user)
     assert "orders.read" in all_perms
@@ -230,9 +229,8 @@ async def test_get_all_permissions_via_role(db_session: AsyncSession):
 async def test_get_all_permissions_direct(db_session: AsyncSession):
     perm = await make_permission(db_session, name="orders.write")
     user = await make_user(db_session)
-    user.direct_permissions.append(perm)
-    await db_session.flush()
-    await db_session.refresh(user)
+    await user.give_permission_to(db_session, perm)
+    user = await UserRepository(db_session).get_with_roles_and_permissions(user.id)
 
     all_perms = get_all_permissions(user)
     assert "orders.write" in all_perms
@@ -246,11 +244,10 @@ async def test_get_all_permissions_union(db_session: AsyncSession):
     await db_session.flush()
 
     user = await make_user(db_session)
-    user.roles.append(role)
-    user.direct_permissions.append(shared)
-    user.direct_permissions.append(direct_only)
-    await db_session.flush()
-    await db_session.refresh(user)
+    await user.assign_role(db_session, role)
+    await user.give_permission_to(db_session, shared)
+    await user.give_permission_to(db_session, direct_only)
+    user = await UserRepository(db_session).get_with_roles_and_permissions(user.id)
 
     all_perms = get_all_permissions(user)
     assert all_perms == {"shared.perm", "direct.only"}

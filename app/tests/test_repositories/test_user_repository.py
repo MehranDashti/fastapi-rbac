@@ -51,8 +51,7 @@ async def test_get_with_roles_and_permissions(db_session: AsyncSession):
     await db_session.flush()
 
     user = await make_user(db_session)
-    user.roles.append(role)
-    await db_session.flush()
+    await user.assign_role(db_session, role)
 
     loaded = await UserRepository(db_session).get_with_roles_and_permissions(user.id)
     assert loaded is not None
@@ -64,74 +63,9 @@ async def test_get_with_roles_and_permissions(db_session: AsyncSession):
 async def test_get_with_roles_and_direct_permissions(db_session: AsyncSession):
     perm = await make_permission(db_session, name="y.write")
     user = await make_user(db_session)
-    user.direct_permissions.append(perm)
-    await db_session.flush()
+    await user.give_permission_to(db_session, perm)
 
     loaded = await UserRepository(db_session).get_with_roles_and_permissions(user.id)
     assert loaded is not None
     assert len(loaded.direct_permissions) == 1
     assert loaded.direct_permissions[0].name == "y.write"
-
-
-async def test_assign_role_idempotent(db_session: AsyncSession):
-    user = await make_user(db_session)
-    role = await make_role(db_session)
-    repo = UserRepository(db_session)
-
-    await repo.assign_role(user, role)
-    await repo.assign_role(user, role)
-    assert len(user.roles) == 1
-
-
-async def test_revoke_role_idempotent(db_session: AsyncSession):
-    user = await make_user(db_session)
-    role = await make_role(db_session)
-    repo = UserRepository(db_session)
-
-    await repo.revoke_role(user, role)  # not assigned — no error
-    assert len(user.roles) == 0
-
-
-async def test_sync_roles_replaces(db_session: AsyncSession):
-    user = await make_user(db_session)
-    r1 = await make_role(db_session, name="r1")
-    r2 = await make_role(db_session, name="r2")
-    repo = UserRepository(db_session)
-
-    await repo.assign_role(user, r1)
-    await repo.sync_roles(user, [r2])
-
-    assert len(user.roles) == 1
-    assert user.roles[0].name == "r2"
-
-
-async def test_assign_direct_permission_idempotent(db_session: AsyncSession):
-    user = await make_user(db_session)
-    perm = await make_permission(db_session)
-    repo = UserRepository(db_session)
-
-    await repo.assign_direct_permission(user, perm)
-    await repo.assign_direct_permission(user, perm)
-    assert len(user.direct_permissions) == 1
-
-
-async def test_revoke_direct_permission_idempotent(db_session: AsyncSession):
-    user = await make_user(db_session)
-    perm = await make_permission(db_session)
-    repo = UserRepository(db_session)
-
-    await repo.revoke_direct_permission(user, perm)  # not assigned — no error
-    assert len(user.direct_permissions) == 0
-
-
-async def test_sync_direct_permissions_replaces(db_session: AsyncSession):
-    user = await make_user(db_session)
-    p1 = await make_permission(db_session, name="p1.a")
-    p2 = await make_permission(db_session, name="p2.b")
-    repo = UserRepository(db_session)
-
-    await repo.assign_direct_permission(user, p1)
-    await repo.sync_direct_permissions(user, [p2])
-
-    assert len(user.direct_permissions) == 1
-    assert user.direct_permissions[0].name == "p2.b"

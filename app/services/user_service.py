@@ -90,20 +90,44 @@ class UserService(BaseService[User]):
         role = await self.role_repo.get_by_id(role_id)
         if not role:
             raise NotFoundError(f"Role with id {role_id} not found.")
-        if role in user.roles:
+        if any(r.id == role.id for r in user.roles):
             raise ConflictError(f"Role '{role.name}' is already assigned to this user.")
-        await self.repo.assign_role(user, role)
-        return user
+        await user.assign_role(self.repo.db, role)
+        return await self.repo.get_with_roles_and_permissions(user_id)  # type: ignore[return-value]
 
     async def revoke_role(self, user_id: int, role_id: int) -> User:
         user = await self.get_by_id_with_roles_and_permissions(user_id)
         role = await self.role_repo.get_by_id(role_id)
         if not role:
             raise NotFoundError(f"Role with id {role_id} not found.")
-        if role not in user.roles:
+        if not any(r.id == role.id for r in user.roles):
             raise ConflictError(f"Role '{role.name}' is not assigned to this user.")
-        await self.repo.revoke_role(user, role)
-        return user
+        await user.remove_role(self.repo.db, role)
+        return await self.repo.get_with_roles_and_permissions(user_id)  # type: ignore[return-value]
+
+    async def assign_direct_permission(self, user_id: int, permission_id: int) -> User:
+        user = await self.get_by_id_with_roles_and_permissions(user_id)
+        permission = await self.permission_repo.get_by_id(permission_id)
+        if not permission:
+            raise NotFoundError(f"Permission with id {permission_id} not found.")
+        if any(p.id == permission.id for p in user.direct_permissions):
+            raise ConflictError(
+                f"Permission '{permission.name}' is already directly assigned to this user."
+            )
+        await user.give_permission_to(self.repo.db, permission)
+        return await self.repo.get_with_roles_and_permissions(user_id)  # type: ignore[return-value]
+
+    async def revoke_direct_permission(self, user_id: int, permission_id: int) -> User:
+        user = await self.get_by_id_with_roles_and_permissions(user_id)
+        permission = await self.permission_repo.get_by_id(permission_id)
+        if not permission:
+            raise NotFoundError(f"Permission with id {permission_id} not found.")
+        if not any(p.id == permission.id for p in user.direct_permissions):
+            raise ConflictError(
+                f"Permission '{permission.name}' is not directly assigned to this user."
+            )
+        await user.revoke_permission_to(self.repo.db, permission)
+        return await self.repo.get_with_roles_and_permissions(user_id)  # type: ignore[return-value]
 
     async def sync_roles(self, user_id: int, role_ids: list[int]) -> User:
         user = await self.get_by_id_with_roles_and_permissions(user_id)
@@ -113,32 +137,8 @@ class UserService(BaseService[User]):
             if not role:
                 raise NotFoundError(f"Role with id {role_id} not found.")
             roles.append(role)
-        await self.repo.sync_roles(user, roles)
-        return user
-
-    async def assign_direct_permission(self, user_id: int, permission_id: int) -> User:
-        user = await self.get_by_id_with_roles_and_permissions(user_id)
-        permission = await self.permission_repo.get_by_id(permission_id)
-        if not permission:
-            raise NotFoundError(f"Permission with id {permission_id} not found.")
-        if permission in user.direct_permissions:
-            raise ConflictError(
-                f"Permission '{permission.name}' is already directly assigned to this user."
-            )
-        await self.repo.assign_direct_permission(user, permission)
-        return user
-
-    async def revoke_direct_permission(self, user_id: int, permission_id: int) -> User:
-        user = await self.get_by_id_with_roles_and_permissions(user_id)
-        permission = await self.permission_repo.get_by_id(permission_id)
-        if not permission:
-            raise NotFoundError(f"Permission with id {permission_id} not found.")
-        if permission not in user.direct_permissions:
-            raise ConflictError(
-                f"Permission '{permission.name}' is not directly assigned to this user."
-            )
-        await self.repo.revoke_direct_permission(user, permission)
-        return user
+        await user.sync_roles(self.repo.db, roles)
+        return await self.repo.get_with_roles_and_permissions(user_id)  # type: ignore[return-value]
 
     async def sync_direct_permissions(self, user_id: int, permission_ids: list[int]) -> User:
         user = await self.get_by_id_with_roles_and_permissions(user_id)
@@ -148,8 +148,8 @@ class UserService(BaseService[User]):
             if not permission:
                 raise NotFoundError(f"Permission with id {permission_id} not found.")
             permissions.append(permission)
-        await self.repo.sync_direct_permissions(user, permissions)
-        return user
+        await user.sync_permissions(self.repo.db, permissions)
+        return await self.repo.get_with_roles_and_permissions(user_id)  # type: ignore[return-value]
 
     async def get_paginated(
         self,

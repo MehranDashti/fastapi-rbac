@@ -56,7 +56,7 @@ async def create_permission(
 ):
     perm = await service.create(
         name=body.name,
-        display_name=body.display_name,
+        description=body.description,
         guard_name=body.guard_name,
     )
     return created(PermissionResponse.model_validate(perm))
@@ -72,7 +72,7 @@ async def update_permission(
     body: PermissionUpdate,
     service: PermissionService = Depends(get_permission_service),
 ):
-    perm = await service.update(permission_id, display_name=body.display_name)
+    perm = await service.update(permission_id, description=body.description)
     return ok(PermissionResponse.model_validate(perm))
 
 

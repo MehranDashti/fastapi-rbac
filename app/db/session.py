@@ -42,10 +42,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def create_tables() -> None:
+    from fastapi_role_permission.models.base import RBACBase
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(RBACBase.metadata.create_all)
 
 
 async def drop_tables() -> None:
+    from fastapi_role_permission.models.base import RBACBase
     async with engine.begin() as conn:
+        await conn.run_sync(RBACBase.metadata.drop_all)
         await conn.run_sync(Base.metadata.drop_all)

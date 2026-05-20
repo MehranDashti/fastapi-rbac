@@ -17,29 +17,29 @@ def make_service(db: AsyncSession) -> RoleService:
 
 async def test_create_success(db_session: AsyncSession):
     service = make_service(db_session)
-    role = await service.create(name="editor", display_name="Editor")
+    role = await service.create(name="editor", description="Editor")
     assert role.id is not None
     assert role.name == "editor"
 
 
 async def test_create_duplicate(db_session: AsyncSession):
     service = make_service(db_session)
-    await service.create(name="editor", display_name="Editor")
+    await service.create(name="editor", description="Editor")
     with pytest.raises(ConflictError):
-        await service.create(name="editor", display_name="Editor Again")
+        await service.create(name="editor", description="Editor Again")
 
 
 async def test_update_success(db_session: AsyncSession):
     role = await make_role(db_session, name="viewer")
     service = make_service(db_session)
-    updated = await service.update(role.id, display_name="Viewer Updated")
-    assert updated.display_name == "Viewer Updated"
+    updated = await service.update(role.id, description="Viewer Updated")
+    assert updated.description == "Viewer Updated"
 
 
 async def test_update_not_found(db_session: AsyncSession):
     service = make_service(db_session)
     with pytest.raises(NotFoundError):
-        await service.update(9999, display_name="X")
+        await service.update(9999, description="X")
 
 
 async def test_delete_success(db_session: AsyncSession):

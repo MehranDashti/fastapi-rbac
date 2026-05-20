@@ -4,8 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.permission import Permission
-from app.models.role import Role
+from fastapi_role_permission import Permission, Role
+
 from app.models.user import User
 from app.repositories.base import BaseRepository
 
@@ -51,34 +51,6 @@ class UserRepository(BaseRepository[User]):
             select(User.id).where(User.username == username)
         )
         return result.scalars().first() is not None
-
-    async def assign_role(self, user: User, role: Role) -> None:
-        if role not in user.roles:
-            user.roles.append(role)
-            await self.db.flush()
-
-    async def revoke_role(self, user: User, role: Role) -> None:
-        if role in user.roles:
-            user.roles.remove(role)
-            await self.db.flush()
-
-    async def sync_roles(self, user: User, roles: list[Role]) -> None:
-        user.roles = roles
-        await self.db.flush()
-
-    async def assign_direct_permission(self, user: User, permission: Permission) -> None:
-        if permission not in user.direct_permissions:
-            user.direct_permissions.append(permission)
-            await self.db.flush()
-
-    async def revoke_direct_permission(self, user: User, permission: Permission) -> None:
-        if permission in user.direct_permissions:
-            user.direct_permissions.remove(permission)
-            await self.db.flush()
-
-    async def sync_direct_permissions(self, user: User, permissions: list[Permission]) -> None:
-        user.direct_permissions = permissions
-        await self.db.flush()
 
     async def get_filtered_paginated(
         self,

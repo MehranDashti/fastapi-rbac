@@ -5,7 +5,7 @@ from app.filters.base import BaseFilter, FilterFn
 
 class RoleFilter(BaseFilter):
     def filters(self) -> dict[str, FilterFn]:
-        from app.models.role import Role
+        from fastapi_role_permission import Role
         return {
             "name":       lambda q, v: q.where(Role.name.ilike(f"%{v}%")),
             "guard_name": lambda q, v: q.where(Role.guard_name == v),

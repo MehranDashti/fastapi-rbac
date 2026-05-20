@@ -13,29 +13,29 @@ def make_service(db: AsyncSession) -> PermissionService:
 
 async def test_create_success(db_session: AsyncSession):
     service = make_service(db_session)
-    perm = await service.create(name="posts.read", display_name="Read Posts")
+    perm = await service.create(name="posts.read", description="Read Posts")
     assert perm.id is not None
     assert perm.name == "posts.read"
 
 
 async def test_create_duplicate(db_session: AsyncSession):
     service = make_service(db_session)
-    await service.create(name="posts.read", display_name="Read Posts")
+    await service.create(name="posts.read", description="Read Posts")
     with pytest.raises(ConflictError):
-        await service.create(name="posts.read", display_name="Read Posts Again")
+        await service.create(name="posts.read", description="Read Posts Again")
 
 
 async def test_update_success(db_session: AsyncSession):
     perm = await make_permission(db_session, name="posts.write")
     service = make_service(db_session)
-    updated = await service.update(perm.id, display_name="Write Posts Updated")
-    assert updated.display_name == "Write Posts Updated"
+    updated = await service.update(perm.id, description="Write Posts Updated")
+    assert updated.description == "Write Posts Updated"
 
 
 async def test_update_not_found(db_session: AsyncSession):
     service = make_service(db_session)
     with pytest.raises(NotFoundError):
-        await service.update(9999, display_name="X")
+        await service.update(9999, description="X")
 
 
 async def test_delete_success(db_session: AsyncSession):

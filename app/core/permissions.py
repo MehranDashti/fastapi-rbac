@@ -2,6 +2,14 @@ from collections.abc import Callable
 
 from fastapi import Depends, HTTPException, status
 
+from fastapi_role_permission import (
+    require_permission,
+    require_any_permission,
+    require_role,
+    require_any_role,
+    require_role_or_permission,
+)
+
 from app.core.dependencies import get_current_user
 from app.models.user import User
 
@@ -58,54 +66,12 @@ def has_all_roles(user: User, *roles: str) -> bool:
     return all(r in user_role_names for r in roles)
 
 
-def require_permission(*permissions: str) -> Callable:
-    async def dependency(current_user: User = Depends(get_current_user)) -> User:
-        if not can_all(current_user, *permissions):
-            missing = [p for p in permissions if not can(current_user, p)]
-            raise PermissionDeniedError(
-                detail=f"Missing required permission(s): {', '.join(missing)}."
-            )
-        return current_user
-    dependency.__name__ = f"require_permission({'|'.join(permissions)})"
-    return dependency
-
-
-def require_any_permission(*permissions: str) -> Callable:
-    async def dependency(current_user: User = Depends(get_current_user)) -> User:
-        if not can_any(current_user, *permissions):
-            raise PermissionDeniedError(
-                detail=f"Requires at least one of: {', '.join(permissions)}."
-            )
-        return current_user
-    dependency.__name__ = f"require_any_permission({'|'.join(permissions)})"
-    return dependency
-
+# Package's require_* are re-exported here so all route imports stay the same.
+# require_permission, require_any_permission, require_role, require_any_role,
+# require_role_or_permission are all imported above.
 
 def require_all_permissions(*permissions: str) -> Callable:
     return require_permission(*permissions)
-
-
-def require_role(*roles: str) -> Callable:
-    async def dependency(current_user: User = Depends(get_current_user)) -> User:
-        if not has_all_roles(current_user, *roles):
-            missing = [r for r in roles if not has_role(current_user, r)]
-            raise PermissionDeniedError(
-                detail=f"Missing required role(s): {', '.join(missing)}."
-            )
-        return current_user
-    dependency.__name__ = f"require_role({'|'.join(roles)})"
-    return dependency
-
-
-def require_any_role(*roles: str) -> Callable:
-    async def dependency(current_user: User = Depends(get_current_user)) -> User:
-        if not has_any_role(current_user, *roles):
-            raise PermissionDeniedError(
-                detail=f"Requires at least one of these roles: {', '.join(roles)}."
-            )
-        return current_user
-    dependency.__name__ = f"require_any_role({'|'.join(roles)})"
-    return dependency
 
 
 def require_active_user() -> Callable:

@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import settings
 from app.db.session import Base
+from fastapi_role_permission.models.base import RBACBase
 
-# register every model with Base.metadata before autogenerate runs
+# register every model with Base.metadata (and RBACBase.metadata) before autogenerate runs
 import app.models  # noqa: F401
 
 config = context.config
@@ -20,7 +21,7 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+target_metadata = [Base.metadata, RBACBase.metadata]
 
 
 def run_migrations_offline() -> None:

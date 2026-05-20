@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.models.permission import Permission
+from fastapi_role_permission import Permission
 from app.repositories.permission_repository import PermissionRepository
 from app.services.base import BaseService
 
@@ -35,7 +35,7 @@ class PermissionService(BaseService[Permission]):
     async def create(
         self,
         name: str,
-        display_name: str,
+        description: str | None = None,
         guard_name: str = "api",
     ) -> Permission:
         if await self.repo.exists(name, guard_name):
@@ -44,12 +44,12 @@ class PermissionService(BaseService[Permission]):
             )
         permission = Permission(
             name=name,
-            display_name=display_name,
+            description=description,
             guard_name=guard_name,
         )
         return await self.repo.create(permission)
 
-    async def update(self, permission_id: int, display_name: str) -> Permission:
+    async def update(self, permission_id: int, description: str | None) -> Permission:
         permission = await self.get_by_id(permission_id)
-        permission.display_name = display_name
+        permission.description = description
         return await self._flush_refresh(permission)

@@ -4,8 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.permission import Permission
-from app.models.role import Role
+from fastapi_role_permission import Permission, Role
+
 from app.repositories.base import BaseRepository
 
 if TYPE_CHECKING:

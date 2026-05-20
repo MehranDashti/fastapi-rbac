@@ -54,10 +54,10 @@ async def test_update_role(client: AsyncClient, admin_headers: dict[str, str]):
     resp = await client.patch(
         f"/api/v1/admin/roles/{rid}",
         headers=admin_headers,
-        json={"display_name": "Updated Display Name"},
+        json={"description": "Updated Display Name"},
     )
     assert resp.status_code == 200
-    assert resp.json()["data"]["display_name"] == "Updated Display Name"
+    assert resp.json()["data"]["description"] == "Updated Display Name"
 
 
 async def test_delete_role(client: AsyncClient, admin_headers: dict[str, str]):

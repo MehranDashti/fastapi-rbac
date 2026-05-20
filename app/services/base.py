@@ -1,10 +1,9 @@
 from typing import Generic, TypeVar
 
 from app.core.exceptions import NotFoundError
-from app.db.session import Base
 from app.repositories.base import BaseRepository
 
-T = TypeVar("T", bound=Base)
+T = TypeVar("T")
 
 
 class BaseService(Generic[T]):

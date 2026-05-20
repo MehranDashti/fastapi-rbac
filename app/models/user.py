@@ -1,56 +1,13 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
-
-user_roles = Table(
-    "user_roles",
-    Base.metadata,
-    Column(
-        "user_id",
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        primary_key=True,
-        nullable=False,
-    ),
-    Column(
-        "role_id",
-        Integer,
-        ForeignKey("roles.id", ondelete="CASCADE"),
-        primary_key=True,
-        nullable=False,
-    ),
-    mysql_engine="InnoDB",
-    mysql_charset="utf8mb4",
-    mysql_collate="utf8mb4_unicode_ci",
-)
-
-user_permissions = Table(
-    "user_permissions",
-    Base.metadata,
-    Column(
-        "user_id",
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        primary_key=True,
-        nullable=False,
-    ),
-    Column(
-        "permission_id",
-        Integer,
-        ForeignKey("permissions.id", ondelete="CASCADE"),
-        primary_key=True,
-        nullable=False,
-    ),
-    mysql_engine="InnoDB",
-    mysql_charset="utf8mb4",
-    mysql_collate="utf8mb4_unicode_ci",
-)
+from fastapi_role_permission import HasRoles
 
 
-class User(Base):
+class User(Base, HasRoles):
     __tablename__ = "users"
     __table_args__ = {
         "mysql_engine": "InnoDB",
@@ -75,17 +32,4 @@ class User(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
-
-    roles: Mapped[list["Role"]] = relationship(  # noqa: F821
-        "Role",
-        secondary="user_roles",
-        back_populates="users",
-        lazy="selectin",
-    )
-
-    direct_permissions: Mapped[list["Permission"]] = relationship(  # noqa: F821
-        "Permission",
-        secondary="user_permissions",
-        back_populates="users",
-        lazy="selectin",
-    )
+    # .roles and .direct_permissions are injected by init_rbac() → setup_relationships()

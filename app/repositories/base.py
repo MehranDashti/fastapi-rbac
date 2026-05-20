@@ -3,12 +3,10 @@ from typing import TYPE_CHECKING, Generic, Type, TypeVar
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import Base
-
 if TYPE_CHECKING:
     from app.db.pagination import PaginationParams
 
-T = TypeVar("T", bound=Base)
+T = TypeVar("T")
 
 
 class BaseRepository(Generic[T]):

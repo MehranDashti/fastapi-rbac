@@ -9,3 +9,4 @@ alembic
 aiomysql
 python-jose[cryptography]
 bcrypt
+fastapi-role-permission

@@ -3,11 +3,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-import app.models  # noqa: F401
+import app.models  # noqa: F401 — registers both Base and RBACBase tables
 from app.core.security import get_password_hash
 from app.db.session import Base, get_db
-from app.models.permission import Permission
-from app.models.role import Role
+from fastapi_role_permission import Permission, PermissionConfig, Role, init_rbac
+from fastapi_role_permission.models.base import RBACBase
 from app.models.user import User
 from app.tests.factories import make_user
 from main import app
@@ -27,19 +27,19 @@ TestSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
-SYSTEM_PERMISSIONS: list[tuple[str, str]] = [
-    ("users.read",          "Read Users"),
-    ("users.create",        "Create Users"),
-    ("users.update",        "Update Users"),
-    ("users.delete",        "Delete Users"),
-    ("roles.read",          "Read Roles"),
-    ("roles.create",        "Create Roles"),
-    ("roles.update",        "Update Roles"),
-    ("roles.delete",        "Delete Roles"),
-    ("permissions.read",    "Read Permissions"),
-    ("permissions.create",  "Create Permissions"),
-    ("permissions.update",  "Update Permissions"),
-    ("permissions.delete",  "Delete Permissions"),
+SYSTEM_PERMISSIONS: list[str] = [
+    "users.read",
+    "users.create",
+    "users.update",
+    "users.delete",
+    "roles.read",
+    "roles.create",
+    "roles.update",
+    "roles.delete",
+    "permissions.read",
+    "permissions.create",
+    "permissions.update",
+    "permissions.delete",
 ]
 
 
@@ -58,10 +58,22 @@ app.dependency_overrides[get_db] = override_get_db
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_db():
+    from app.core.dependencies import get_current_user
+    # Call init_rbac once per test session so mixin methods (assign_role etc.)
+    # work in unit tests that use db_session directly (no client/lifespan involved).
+    init_rbac(
+        app,
+        get_db=get_db,
+        get_current_user=get_current_user,
+        user_model=User,
+        config=PermissionConfig(guard_name="api"),
+    )
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(RBACBase.metadata.create_all)
     yield
     async with test_engine.begin() as conn:
+        await conn.run_sync(RBACBase.metadata.drop_all)
         await conn.run_sync(Base.metadata.drop_all)
 
 
@@ -69,6 +81,8 @@ async def setup_db():
 async def clean_db():
     yield
     async with test_engine.begin() as conn:
+        for table in reversed(RBACBase.metadata.sorted_tables):
+            await conn.execute(table.delete())
         for table in reversed(Base.metadata.sorted_tables):
             await conn.execute(table.delete())
 
@@ -96,13 +110,13 @@ async def client() -> AsyncClient:
 async def admin_headers(client: AsyncClient) -> dict[str, str]:
     async with TestSessionLocal() as db:
         perms: list[Permission] = []
-        for name, display_name in SYSTEM_PERMISSIONS:
-            perm = Permission(name=name, display_name=display_name, guard_name="api")
+        for name in SYSTEM_PERMISSIONS:
+            perm = Permission(name=name, guard_name="api")
             db.add(perm)
             perms.append(perm)
         await db.flush()
 
-        role = Role(name="superadmin", display_name="Super Admin", guard_name="api")
+        role = Role(name="superadmin", guard_name="api")
         db.add(role)
         await db.flush()
         await db.refresh(role)
@@ -119,7 +133,8 @@ async def admin_headers(client: AsyncClient) -> dict[str, str]:
         db.add(user)
         await db.flush()
         await db.refresh(user)
-        user.roles.append(role)
+        # user.roles is viewonly — use mixin method (init_rbac is called via lifespan on client)
+        await user.assign_role(db, role)
         await db.commit()
 
     resp = await client.post(

@@ -6,7 +6,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api.v1.router import api_router
+from fastapi_role_permission import init_rbac, PermissionConfig
+
 from app.core.config import settings
 from app.core.exception_handler import (
     app_error_handler,
@@ -18,7 +19,7 @@ from app.core.exceptions import AppError
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
 from app.core.response import ok
-from app.db.session import create_tables, drop_tables
+from app.db.session import create_tables, get_db
 
 
 @asynccontextmanager
@@ -29,6 +30,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    from app.core.dependencies import get_current_user
+    from app.models.user import User
+
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
@@ -36,6 +40,16 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if not settings.PRODUCTION else None,
         openapi_url="/openapi.json" if not settings.PRODUCTION else None,
         lifespan=lifespan,
+    )
+
+    # Must be called before importing routers: require_permission() reads _state at
+    # module-load time (as a default argument), so init_rbac must run first.
+    init_rbac(
+        app,
+        get_db=get_db,
+        get_current_user=get_current_user,
+        user_model=User,
+        config=PermissionConfig(guard_name="api"),
     )
 
     app.add_middleware(
@@ -52,6 +66,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
+    from app.api.v1.router import api_router
     app.include_router(api_router)
 
     @app.get("/health", tags=["Health"], include_in_schema=not settings.PRODUCTION)

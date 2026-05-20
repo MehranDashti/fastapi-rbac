@@ -3,7 +3,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.permission import Permission
+from fastapi_role_permission import Permission
+
 from app.repositories.base import BaseRepository
 
 if TYPE_CHECKING:

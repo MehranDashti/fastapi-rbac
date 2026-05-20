@@ -3,12 +3,12 @@ from pydantic import BaseModel, Field
 
 class RoleCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=125, examples=["editor"])
-    display_name: str = Field(..., min_length=2, max_length=255, examples=["Editor"])
+    description: str | None = Field(None, max_length=255, examples=["Editor"])
     guard_name: str = Field(default="api", max_length=125, examples=["api"])
 
 
 class RoleUpdate(BaseModel):
-    display_name: str = Field(..., min_length=2, max_length=255, examples=["Editor"])
+    description: str | None = Field(None, max_length=255, examples=["Editor"])
 
 
 class AssignPermissionRequest(BaseModel):

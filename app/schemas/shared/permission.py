@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class PermissionResponse(BaseModel):
     id: int
     name: str
-    display_name: str
+    description: str | None = None
     guard_name: str
     created_at: datetime
     updated_at: datetime
