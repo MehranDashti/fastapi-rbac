@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - name: Checkout fastapi-rbac
+        uses: actions/checkout@v4
+        with:
+          path: fastapi-rbac
+
+      # fastapi-role-permission is a sibling repo installed as an editable package.
+      # Replace the repository value below if the package lives in a different org/name.
+      # For private repos add:  token: ${{ secrets.GH_PAT }}
+      - name: Checkout fastapi-role-permission
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fastapi-role-permission
+          path: fastapi-role-permission
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-py${{ matrix.python-version }}-pip-${{ hashFiles('fastapi-rbac/requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-py${{ matrix.python-version }}-pip-
+
+      - name: Install dependencies
+        working-directory: fastapi-rbac
+        run: |
+          pip install --upgrade pip
+          pip install -e ../fastapi-role-permission
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        working-directory: fastapi-rbac
+        run: pytest --tb=short -q

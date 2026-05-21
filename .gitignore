@@ -53,6 +53,7 @@ MANIFEST
 *.spec
 
 CLAUDE.md
+.claude
 
 # Installer logs
 pip-log.txt
