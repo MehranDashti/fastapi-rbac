@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi_role_permission import Permission, Role
+from fastapi_role_permission.exceptions import RoleDoesNotExist
 
 from .base import BaseSeeder
 from .permission_seeder import SYSTEM_PERMISSIONS
@@ -14,12 +15,12 @@ class RoleSeeder(BaseSeeder):
     description = "Seed superadmin role and assign all system permissions"
 
     async def run(self, db: AsyncSession) -> None:
-        role = await Role.find_by_name(db, SUPERADMIN_ROLE, guard_name="api")
-        if not role:
+        try:
+            role = await Role.find_by_name(db, SUPERADMIN_ROLE, guard_name="api")
+            print(f"   — exists   {SUPERADMIN_ROLE}")
+        except RoleDoesNotExist:
             role = await Role.create(db, SUPERADMIN_ROLE, guard_name="api")
             print(f"   ✔ created  {SUPERADMIN_ROLE}")
-        else:
-            print(f"   — exists   {SUPERADMIN_ROLE}")
 
         result = await db.execute(
             select(Permission).where(

@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi_role_permission import Permission
+from fastapi_role_permission.exceptions import PermissionDoesNotExist
 
 from .base import BaseSeeder
 
@@ -26,9 +27,9 @@ class PermissionSeeder(BaseSeeder):
 
     async def run(self, db: AsyncSession) -> None:
         for perm_name in SYSTEM_PERMISSIONS:
-            perm = await Permission.find_by_name(db, perm_name, guard_name="api")
-            if not perm:
+            try:
+                await Permission.find_by_name(db, perm_name, guard_name="api")
+                print(f"   — exists   {perm_name}")
+            except PermissionDoesNotExist:
                 await Permission.create(db, perm_name, guard_name="api")
                 print(f"   ✔ created  {perm_name}")
-            else:
-                print(f"   — exists   {perm_name}")
