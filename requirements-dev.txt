@@ -3,4 +3,5 @@ aiosqlite
 httpx
 pytest
 pytest-asyncio
+pytest-cov
 faker
